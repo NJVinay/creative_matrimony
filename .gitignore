@@ -1,0 +1,25 @@
+# Root environment variables
+.env
+.env.*
+!.env.example
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# If you want to keep AI agent chats/prompts local and out of version control, 
+.agent/
+.claude/
+context_documents/
+prompts/

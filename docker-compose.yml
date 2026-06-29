@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - ./backend/static:/app/static
+      - ./backend/creative_matrimony.db:/app/creative_matrimony.db
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./creative_matrimony.db
+      - SECRET_KEY=${SECRET_KEY}
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
+    restart: unless-stopped
