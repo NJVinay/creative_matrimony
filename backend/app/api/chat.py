@@ -63,8 +63,11 @@ async def send_interest(
         raise HTTPException(status_code=400, detail="Profile required")
     if user.profile.id == profile_id:
         raise HTTPException(status_code=400, detail="Cannot connect with self")
-        
-    interest = await ChatService.send_interest(db, user.profile.id, profile_id)
+
+    try:
+        interest = await ChatService.send_interest(db, user.profile.id, profile_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "sent", "id": interest.id}
 
 @router.get("/interests/received", response_model=List[InterestOut])

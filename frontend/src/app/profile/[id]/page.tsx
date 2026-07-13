@@ -130,6 +130,20 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
         }
     };
 
+    const handlePanicBlock = async () => {
+        if (!window.confirm("Block this profile? They will no longer see you, message you, or appear in your matches. Any shared chat will be closed immediately.")) {
+            return;
+        }
+        try {
+            await apiFetch(`/safety/block/${profileId}`, { method: "POST", body: {} });
+            toast("Profile blocked. They can no longer contact you.", "success");
+            setNotFound(true); // hide the profile locally right away
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Failed to block";
+            toast(msg, "error");
+        }
+    };
+
     const handleReport = async () => {
         if (reportReason === "other" && !reportEvidence.trim()) {
             toast("Please provide a description for the 'other' reason.", "error");
@@ -140,7 +154,7 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
             await apiFetch("/reports", {
                 method: "POST",
                 body: {
-                    target_user_id: profileId,
+                    target_profile_id: profileId,
                     reason: reportReason,
                     evidence_text: reportEvidence || null,
                 },
@@ -245,6 +259,13 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                                 </Button>
                                 <Button variant="outline" onClick={() => setShowReport(true)}>
                                     ⚠️ Report
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={handlePanicBlock}
+                                    className="border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                >
+                                    🚫 Block
                                 </Button>
                             </div>
                         </div>

@@ -1,6 +1,6 @@
 """Pydantic schemas for auth endpoints."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class OTPRequestIn(BaseModel):
@@ -34,11 +34,18 @@ class TokenRefreshOut(BaseModel):
     token_type: str = "bearer"
 
 
+class ContactUpdateIn(BaseModel):
+    email: EmailStr | None = None
+    email_digest_opt_in: bool | None = None
+
+
 class UserOut(BaseModel):
     id: int
     phone: str
+    email: str | None = None
     role: str
     is_verified: bool
     is_banned: bool
+    email_digest_opt_in: bool = False
 
     model_config = {"from_attributes": True}

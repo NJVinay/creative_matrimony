@@ -12,6 +12,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.services.matching_service import MatchingService
+from app.services.profile_service import to_public_view
 from app.schemas.match import PreferenceOut, PreferenceUpdate, MatchRecommendation
 from app.schemas.profile import ProfilePublicOut
 
@@ -32,14 +33,15 @@ async def get_recommendations(
         
     # Get matches from service
     matches = await MatchingService.get_recommendations(db, user.profile.id, limit)
-    
-    # Convert to schema
+
+    # Convert to schema (privacy-safe public view — no DOB/phone/location detail)
     return [
         MatchRecommendation(
-            profile=ProfilePublicOut.model_validate(p),
+            profile=ProfilePublicOut(**to_public_view(p, p.user)),
             score=s,
-            reasons=r
-        ) for p, s, r in matches
+            reasons=r,
+            confidence=c
+        ) for p, s, r, c in matches
     ]
 
 @router.get("/preferences", response_model=PreferenceOut)

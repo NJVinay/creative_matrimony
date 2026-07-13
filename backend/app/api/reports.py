@@ -20,7 +20,10 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
 class ReportCreateIn(BaseModel):
-    target_user_id: int
+    # Public pages only know profile ids (user ids are never exposed),
+    # so reports may address either one.
+    target_user_id: int | None = None
+    target_profile_id: int | None = None
     reason: ReportReason
     evidence_text: str | None = Field(None, max_length=2000)
 
@@ -33,8 +36,8 @@ class ReportOut(BaseModel):
     evidence_text: str | None
     status: str
     reviewed_by: int | None
-    reviewed_at: str | None
-    created_at: str
+    reviewed_at: datetime | None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -45,18 +48,26 @@ async def submit_report(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Submit a report against another user."""
-    if body.target_user_id == user.id:
+    """Submit a report against another user (by user id or profile id)."""
+    target_user_id = body.target_user_id
+    if target_user_id is None and body.target_profile_id is not None:
+        from app.models.profile import Profile
+        target_user_id = await db.scalar(
+            select(Profile.user_id).where(Profile.id == body.target_profile_id)
+        )
+    if target_user_id is None:
+        raise HTTPException(status_code=400, detail="target_user_id or target_profile_id required.")
+    if target_user_id == user.id:
         raise HTTPException(status_code=400, detail="You cannot report yourself.")
 
     # Verify target exists
-    target = await db.get(User, body.target_user_id)
+    target = await db.get(User, target_user_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target user not found.")
 
     report = Report(
         reporter_id=user.id,
-        target_user_id=body.target_user_id,
+        target_user_id=target_user_id,
         reason=body.reason,
         evidence_text=body.evidence_text,
     )

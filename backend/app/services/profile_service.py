@@ -62,6 +62,7 @@ def to_public_view(profile: Profile, user: User) -> dict:
         "display_name": profile.display_name,
         "gender": profile.gender.value if profile.gender else None,
         "age": calculate_age(profile.date_of_birth) if profile.date_of_birth else None,
+        "height_cm": profile.height_cm,
         "bio": profile.bio,
         "city_village": profile.city_village,
         "state": profile.state,

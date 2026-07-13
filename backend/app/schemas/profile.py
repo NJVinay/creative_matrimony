@@ -1,6 +1,6 @@
 """Pydantic schemas for profile endpoints."""
 
-from datetime import date
+from datetime import date, datetime
 import re
 from pydantic import BaseModel, Field, field_validator
 
@@ -11,6 +11,7 @@ class ProfileCreateIn(BaseModel):
     display_name: str = Field(..., min_length=2, max_length=100)
     gender: str = Field(..., pattern=r"^(male|female|other)$")
     date_of_birth: date
+    height_cm: int | None = Field(None, ge=100, le=250)
     bio: str | None = Field(None, max_length=2000)
     city_village: str | None = Field(None, max_length=100)
     state: str | None = Field(None, max_length=100)
@@ -24,6 +25,9 @@ class ProfileCreateIn(BaseModel):
     identity_language_group: str = "Telugu"
     family_details: str | None = None
     partner_preferences: str | None = None
+    # Women-first safety opt-in: verified-only visibility from day one.
+    # Photo blur defaults ON for female profiles regardless (reversible in settings).
+    verified_only_opt_in: bool = False
 
     @field_validator("bio", "display_name", "family_details", "partner_preferences", mode="before")
     @classmethod
@@ -35,6 +39,7 @@ class ProfileCreateIn(BaseModel):
 
 class ProfileUpdateIn(BaseModel):
     display_name: str | None = Field(None, min_length=2, max_length=100)
+    height_cm: int | None = Field(None, ge=100, le=250)
     bio: str | None = Field(None, max_length=2000)
     city_village: str | None = Field(None, max_length=100)
     state: str | None = Field(None, max_length=100)
@@ -69,6 +74,7 @@ class ProfileOut(BaseModel):
     display_name: str
     gender: str
     date_of_birth: date
+    height_cm: int | None
     bio: str | None
     city_village: str | None
     state: str | None
@@ -83,7 +89,7 @@ class ProfileOut(BaseModel):
     is_active: bool
     visibility: str
     photo_blur_until_mutual: bool
-    created_at: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -94,6 +100,7 @@ class ProfilePublicOut(BaseModel):
     display_name: str
     gender: str
     age: int  # calculated, not raw DOB
+    height_cm: int | None = None
     bio: str | None
     city_village: str | None
     state: str | None
@@ -114,6 +121,6 @@ class ProfilePhotoOut(BaseModel):
     is_primary: bool
     is_approved: bool | None
     rejection_reason: str | None
-    created_at: str
+    created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -185,7 +185,18 @@ class PaymentService:
 
     @staticmethod
     async def activate_trial(db: AsyncSession, user_id: int) -> UserSubscription:
-        """Instantly grant a 30-day Premium trial to the user."""
+        """Grant a 30-day Premium trial. One trial per phone (Epic H1):
+        phone is unique per user, so any prior trial subscription for this
+        user means the trial was already consumed."""
+        prior_trial = await db.scalar(
+            select(UserSubscription).where(
+                UserSubscription.user_id == user_id,
+                UserSubscription.payment_transaction_id.is_(None),
+            ).limit(1)
+        )
+        if prior_trial:
+            raise ValueError("Trial already used. One free trial per phone number.")
+
         # Deactivate old subscriptions
         await db.execute(
             update(UserSubscription)
@@ -211,6 +222,13 @@ class PaymentService:
             is_active=True
         )
         db.add(trial_sub)
+
+        # Stamp trial window on the user record (idempotent)
+        user = await db.get(User, user_id)
+        if user and not user.trial_started_at:
+            user.trial_started_at = start_date
+            user.trial_ends_at = end_date
+
         await db.commit()
         await db.refresh(trial_sub)
         return trial_sub

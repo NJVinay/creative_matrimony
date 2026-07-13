@@ -16,6 +16,7 @@ from app.models.user import User, UserRole
 from app.models.profile import Profile, ProfilePhoto
 from app.models.payment import UserSubscription
 from app.models.audit import AuditLog
+from app.models.safety import BannedPhone
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -81,14 +82,38 @@ async def list_users(
         for u in users
     ]
 
+class BanIn(BaseModel):
+    reason: str | None = Field(None, max_length=1000)
+
+
 @router.patch("/users/{user_id}/ban")
 async def ban_user(
     user_id: int,
     user: Annotated[User, Depends(check_role(UserRole.admin))],
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: BanIn | None = None,
 ):
-    """Ban a user."""
-    await db.execute(update(User).where(User.id == user_id).values(is_banned=True))
+    """Ban a user. Their phone joins the re-entry blocklist (Epic J2)."""
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    reason = body.reason if body else None
+    target.is_banned = True
+    target.ban_reason = reason
+
+    # Blocklist the phone so a new signup with the same number is rejected
+    existing = await db.scalar(select(BannedPhone).where(BannedPhone.phone == target.phone))
+    if not existing:
+        db.add(BannedPhone(phone=target.phone, user_id=target.id, reason=reason, banned_by=user.id))
+
+    db.add(AuditLog(
+        user_id=user_id,
+        action="ban_user",
+        resource_type="user",
+        resource_id=user_id,
+        details={"admin_id": user.id, "reason": reason},
+    ))
     await db.commit()
     return {"status": "banned"}
 
@@ -98,10 +123,50 @@ async def unban_user(
     user: Annotated[User, Depends(check_role(UserRole.admin))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    """Unban a user."""
-    await db.execute(update(User).where(User.id == user_id).values(is_banned=False))
+    """Unban a user and lift their phone off the re-entry blocklist."""
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    target.is_banned = False
+    target.ban_reason = None
+    banned_phone = await db.scalar(select(BannedPhone).where(BannedPhone.phone == target.phone))
+    if banned_phone:
+        await db.delete(banned_phone)
     await db.commit()
     return {"status": "unbanned"}
+
+@router.patch("/users/{user_id}/verify")
+async def verify_user(
+    user_id: int,
+    user: Annotated[User, Depends(check_role(UserRole.admin, UserRole.verification_officer))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Grant the identity-verified badge (enables verified-only visibility flows)."""
+    target = await db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    target.is_verified = True
+    db.add(AuditLog(
+        user_id=user_id,
+        action="verify_user",
+        resource_type="user",
+        resource_id=user_id,
+        details={"verified_by": user.id},
+    ))
+    await db.commit()
+    return {"status": "verified"}
+
+@router.post("/digest/send")
+async def trigger_weekly_digest(
+    user: Annotated[User, Depends(check_role(UserRole.admin))],
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Send the weekly match digest to all consented users (Epic G2).
+    Point a weekly cron at this endpoint."""
+    from app.services.digest_service import send_weekly_digest
+    summary = await send_weekly_digest(db)
+    return summary
 
 @router.patch("/users/{user_id}/phone")
 async def override_phone(

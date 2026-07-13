@@ -8,11 +8,13 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/alembic:/app/alembic
-      - ./backend/static:/app/static
-      - ./backend/creative_matrimony.db:/app/creative_matrimony.db
+      - ./backend/uploads:/app/uploads
+      - ./backend/dev.db:/app/dev.db
     environment:
-      - DATABASE_URL=sqlite+aiosqlite:///./creative_matrimony.db
-      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=sqlite+aiosqlite:///./dev.db
+      - JWT_SECRET=${JWT_SECRET:-local-dev-secret-do-not-use-in-production}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - CORS_ORIGINS=["http://localhost:3000"]
     restart: unless-stopped
 
   frontend:
@@ -20,7 +22,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+      # Client appends /api itself (see frontend/src/lib/api.ts buildUrl)
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - backend
     restart: unless-stopped

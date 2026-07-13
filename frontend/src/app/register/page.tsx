@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiFetch, tokenStore } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -83,7 +83,7 @@ function RegisterForm() {
                 body: { phone, otp },
                 anonymous: true,
             });
-            tokenStore.set(res.access_token, res.refresh_token);
+            // Tokens arrive as httpOnly cookies set by the backend.
             if (res.is_new_user) {
                 toast("Welcome! Let's set up your profile.", "success");
                 router.replace("/profile/create");

@@ -40,6 +40,8 @@ class User(Base):
     device_fingerprint = Column(String(255), nullable=True)
     trial_started_at = Column(DateTime, nullable=True)
     trial_ends_at = Column(DateTime, nullable=True)
+    email_digest_opt_in = Column(Boolean, default=False, nullable=False,
+                                 doc="Consent for weekly match digest emails (Epic G2)")
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 

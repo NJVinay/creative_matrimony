@@ -20,5 +20,12 @@ from app.models.notification import Notification  # noqa: F401
 from app.models.match import Preference  # noqa: F401
 from app.models.communication import Interest, ChatRoom, ChatParticipant, ChatMessage  # noqa: F401
 from app.models.horoscope import Horoscope  # noqa: F401
-from app.models.expert import ExpertInquiry  # noqa: F401
+from app.models.expert import (  # noqa: F401
+    ExpertInquiry,
+    ExpertSession,
+    CareAssignment,
+    CareTask,
+    CareCallLog,
+)
 from app.models.report import Report  # noqa: F401
+from app.models.safety import UserBlock, BannedPhone  # noqa: F401

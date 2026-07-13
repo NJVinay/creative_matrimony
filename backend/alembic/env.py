@@ -24,10 +24,16 @@ import os
 # Add backend directory to sys.path so app imports work
 sys.path.insert(0, os.getcwd())
 
-from app.database import Base
+from app.database import Base, _normalize_db_url
 from app.models import *  # ensure all models are imported
 
 target_metadata = Base.metadata
+
+# Prefer DATABASE_URL from the environment (Neon/production) over alembic.ini,
+# normalized the same way the app normalizes it (asyncpg dialect, ssl=require).
+_env_db_url = os.environ.get("DATABASE_URL")
+if _env_db_url:
+    config.set_main_option("sqlalchemy.url", _normalize_db_url(_env_db_url))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

@@ -15,7 +15,7 @@ from app.models.profile import Profile, ProfilePhoto # borrowing storage logic?
 from app.models.horoscope import Horoscope
 from app.schemas.horoscope import HoroscopeOut, HoroscopeUpdate, HoroscopeCreate
 from app.middleware.auth import get_current_user
-import shutil
+from app.config import settings
 import os
 import uuid
 
@@ -29,15 +29,11 @@ async def get_my_horoscope(
     """Get the current user's horoscope details."""
     result = await db.execute(select(Horoscope).where(Horoscope.profile_id == user.profile.id))
     horoscope = result.scalar_one_or_none()
-    
-    if not horoscope:
-        # Return empty object or 404? 
-        # Requirement F1: Optional fields. 
-        # If no record, we can return 404 or just create one on fly?
-        # Let's return 404 so frontend knows to show "Create" UI.
+
+    # Requirement F1: fields are optional — a 404 tells the frontend to show the "Create" UI.
     if not horoscope:
         raise HTTPException(status_code=404, detail="Horoscope not found")
-        
+
     return horoscope
 
 @router.get("/profile/{profile_id}", response_model=HoroscopeOut)
@@ -87,51 +83,49 @@ async def update_my_horoscope(
         
     return horoscope
 
+ALLOWED_CHART_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+MAX_CHART_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
 @router.post("/me/chart", response_model=HoroscopeOut)
 async def upload_chart_image(
-    file: UploadFile = File(...),
     user: Annotated[User, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...),
 ):
-    """Upload a horoscope chart image. MOCK implementation (local file)."""
+    """Upload a horoscope chart image (stored privately under LOCAL_STORAGE_DIR)."""
+    if file.content_type not in ALLOWED_CHART_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type. Allowed: {', '.join(ALLOWED_CHART_TYPES)}",
+        )
+    contents = await file.read()
+    if len(contents) > MAX_CHART_BYTES:
+        raise HTTPException(status_code=400, detail="File too large. Maximum 5 MB.")
+
     # 1. Ensure horoscope record exists
     result = await db.execute(select(Horoscope).where(Horoscope.profile_id == user.profile.id))
     horoscope = result.scalar_one_or_none()
-    
+
     if not horoscope:
         horoscope = Horoscope(profile_id=user.profile.id)
         db.add(horoscope)
-    
-    # 2. Save file
-    # We'll use static/uploads directory like ProfilePhoto
-    UPLOAD_DIR = "static/uploads/horoscopes"
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    
-    filename = f"{user.id}_{uuid.uuid4()}.jpg" # Simple extension assumption
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    # 3. Update record
-    # chart_images is a JSON list.
+
+    # 2. Save under the same storage root the app serves at /uploads
+    upload_dir = os.path.join(settings.LOCAL_STORAGE_DIR, "horoscopes")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = ALLOWED_CHART_TYPES[file.content_type]
+    filename = f"{user.id}_{uuid.uuid4().hex}.{ext}"
+    with open(os.path.join(upload_dir, filename), "wb") as buffer:
+        buffer.write(contents)
+
+    # 3. Append to the JSON list (re-assign so SQLAlchemy detects the change)
     current_images = list(horoscope.chart_images) if horoscope.chart_images else []
-    # Mock URL
-    url = f"/static/uploads/horoscopes/{filename}"
-    current_images.append(url)
-    
-    # Update explicitly to trigger SQLAlchemy JSON detection?
-    # Usually works if we re-assign.
+    current_images.append(f"/uploads/horoscopes/{filename}")
     horoscope.chart_images = current_images
-     # Need to ensure it's marked as modified if using mutable types?
-    # Or just reassignment works.
-    
-    # Add if new
-    if not horoscope.id:
-        # db.add was called above
-        pass
 
     await db.commit()
     await db.refresh(horoscope)
-    
+
     return horoscope

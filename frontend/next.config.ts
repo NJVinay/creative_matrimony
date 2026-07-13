@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// API origin for CSP connect-src (REST + WebSocket). Defaults to local dev.
+const apiOrigin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const wsOrigin = apiOrigin.replace(/^http/, "ws");
+
 const nextConfig: NextConfig = {
     async headers() {
         return [
@@ -21,7 +25,7 @@ const nextConfig: NextConfig = {
                     {
                         key: "Content-Security-Policy",
                         // Default strict policy - adjust if you need inline scripts or specific external assets
-                        value: "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://localhost:8000 ws://localhost:8000;",
+                        value: `default-src 'self'; img-src 'self' data: blob: ${apiOrigin}; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ${apiOrigin} ${wsOrigin};`,
                     },
                 ],
             },

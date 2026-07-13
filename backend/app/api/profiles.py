@@ -43,6 +43,7 @@ async def create_profile(
         display_name=body.display_name,
         gender=Gender(body.gender),
         date_of_birth=body.date_of_birth,
+        height_cm=body.height_cm,
         bio=body.bio,
         city_village=body.city_village,
         state=body.state,
@@ -59,6 +60,13 @@ async def create_profile(
     )
     profile.completion_pct = calculate_completion(profile)
     profile.is_active = profile.completion_pct >= 30.0  # Activate with minimal fields
+
+    # Women-first safety defaults (P0): photo blur on by default for women;
+    # verified-only visibility when opted in. Both reversible in privacy settings.
+    if profile.gender == Gender.female:
+        profile.photo_blur_until_mutual = True
+        if body.verified_only_opt_in:
+            profile.visibility = Visibility.verified_only
 
     db.add(profile)
     await db.flush()
@@ -144,6 +152,11 @@ async def get_public_profile(
 
     # Check visibility rules
     if not check_visibility(profile, user):
+        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
+
+    # Blocked users (either direction) can never see each other
+    from app.services.safety_service import are_blocked
+    if await are_blocked(db, user.id, profile.user_id):
         raise HTTPException(status_code=403, detail="This profile is not visible to you.")
 
     # Get profile owner for is_verified flag

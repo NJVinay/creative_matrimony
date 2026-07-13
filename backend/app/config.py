@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
 
+    # ── Auth cookies ─────────────────────────────────────
+    # Set COOKIE_SAMESITE="none" when the frontend runs on a different
+    # domain than the API (e.g. Vercel frontend + Render backend).
+    COOKIE_SAMESITE: str = "lax"  # "lax" | "none" | "strict"
+    COOKIE_SECURE: bool = True
+
     # ── File Storage (local for dev) ─────────────────────
     STORAGE_BACKEND: str = "local"  # "local" | "s3"
     LOCAL_STORAGE_DIR: str = "./uploads"
@@ -45,7 +51,12 @@ class Settings(BaseSettings):
     PAYMENT_PROVIDER: str = "mock"  # "mock" | "razorpay" (when implemented)
     PAYMENT_PROVIDER_SECRET: str = "MOCK_RAZORPAY_SECRET_DO_NOT_USE_IN_PROD"
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # ── Email (Resend) ───────────────────────────────────
+    # Empty key disables outbound email (calls become no-ops that log).
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "Creative Matrimony <onboarding@resend.dev>"
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()

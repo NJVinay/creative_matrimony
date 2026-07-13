@@ -18,6 +18,11 @@ interface PrivacyData {
     hide_from_search: boolean;
 }
 
+interface MeData {
+    email: string | null;
+    email_digest_opt_in: boolean;
+}
+
 function SettingsInner() {
     const { toast } = useToast();
     const { user, logout } = useAuth();
@@ -26,6 +31,11 @@ function SettingsInner() {
     const [privacy, setPrivacy] = useState<PrivacyData | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+
+    // Weekly digest (Epic G2 — consent-gated email)
+    const [email, setEmail] = useState("");
+    const [digestOptIn, setDigestOptIn] = useState(false);
+    const [savingDigest, setSavingDigest] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -49,10 +59,40 @@ function SettingsInner() {
                 if (!cancelled) setLoading(false);
             }
         })();
+        (async () => {
+            try {
+                const me = await apiFetch<MeData>("/auth/me");
+                if (!cancelled) {
+                    setEmail(me.email || "");
+                    setDigestOptIn(me.email_digest_opt_in);
+                }
+            } catch {
+                // non-fatal
+            }
+        })();
         return () => {
             cancelled = true;
         };
     }, [toast]);
+
+    const handleSaveDigest = async () => {
+        setSavingDigest(true);
+        try {
+            await apiFetch("/auth/me/contact", {
+                method: "PATCH",
+                body: {
+                    email: email || null,
+                    email_digest_opt_in: digestOptIn,
+                },
+            });
+            toast("Email preferences saved", "success");
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Failed to save email preferences";
+            toast(msg, "error");
+        } finally {
+            setSavingDigest(false);
+        }
+    };
 
     const handleSavePrivacy = async () => {
         if (!privacy) return;
@@ -191,6 +231,46 @@ function SettingsInner() {
                             You need to <Link href="/profile/create" className="text-primary-600 hover:underline">create a profile</Link> before accessing privacy settings.
                         </Card>
                     )}
+
+                    {/* Email & Weekly Digest (Epic G2) */}
+                    <Card className="p-6">
+                        <h2 className="text-xl font-bold mb-1 text-gray-900 dark:text-gray-100">Email &amp; Weekly Digest</h2>
+                        <p className="text-sm text-gray-500 mb-6">
+                            Get your top matches by email once a week. Only sent with your consent.
+                        </p>
+                        <div className="space-y-4">
+                            <div>
+                                <label htmlFor="digest-email" className="text-sm font-medium block mb-1">Email address</label>
+                                <input
+                                    id="digest-email"
+                                    type="email"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    placeholder="you@example.com"
+                                    className="w-full md:w-2/3 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                />
+                            </div>
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={digestOptIn}
+                                    onChange={e => setDigestOptIn(e.target.checked)}
+                                    className="mt-1 w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                />
+                                <div>
+                                    <div className="font-bold text-sm text-gray-900 dark:text-gray-100">Send me the weekly match digest</div>
+                                    <div className="text-xs text-gray-500 mt-1 max-w-lg">
+                                        A short email with your top new matches. You can turn this off anytime.
+                                    </div>
+                                </div>
+                            </label>
+                            <div className="flex justify-end pt-2">
+                                <Button onClick={handleSaveDigest} isLoading={savingDigest}>
+                                    Save Email Preferences
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
 
                     {/* Danger Zone */}
                     <Card className="p-6 border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10">

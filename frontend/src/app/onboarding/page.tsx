@@ -38,6 +38,8 @@ export default function OnboardingPage() {
         country: "India",
         identity_language_group: "Telugu"
     });
+    // Women-first safety: verified-only visibility opt-in (shown for female profiles)
+    const [verifiedOnlyOptIn, setVerifiedOnlyOptIn] = useState(false);
 
     const updateField = (field: keyof OnboardingData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -53,6 +55,7 @@ export default function OnboardingPage() {
             const payload = {
                 ...formData,
                 guardian_relationship: formData.profile_mode === "parent" ? formData.guardian_relationship : null,
+                verified_only_opt_in: verifiedOnlyOptIn,
             };
             await apiFetch("/profiles", {
                 method: "POST",
@@ -246,6 +249,25 @@ export default function OnboardingPage() {
                                         </select>
                                     </div>
                                 </div>
+
+                                {formData.gender === "female" && (
+                                    <div className="p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-100 dark:border-primary-800">
+                                        <label className="flex items-start gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={verifiedOnlyOptIn}
+                                                onChange={(e) => setVerifiedOnlyOptIn(e.target.checked)}
+                                                className="mt-1 w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                            />
+                                            <div>
+                                                <div className="font-bold text-sm">Extra safety: show my profile only to verified members</div>
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                    Photos are blurred until mutual interest by default. You can change both anytime in Settings.
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                )}
 
                                 <div className="flex gap-4 pt-4">
                                     <Button variant="outline" onClick={prevStep} className="flex-1" disabled={loading}>Back</Button>

@@ -65,6 +65,7 @@ def create_app() -> FastAPI:
     from app.api.expert import router as expert_router
     from app.api.photos import router as photos_router, admin_router as photos_admin_router
     from app.api.reports import router as reports_router, admin_router as reports_admin_router
+    from app.api.safety import router as safety_router
 
     application.include_router(auth_router, prefix=settings.API_PREFIX)
     application.include_router(profiles_router, prefix=settings.API_PREFIX)
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     application.include_router(photos_admin_router, prefix=settings.API_PREFIX)
     application.include_router(reports_router, prefix=settings.API_PREFIX)
     application.include_router(reports_admin_router, prefix=settings.API_PREFIX)
+    application.include_router(safety_router, prefix=settings.API_PREFIX)
 
     # ── Static file serving for uploads ─────────────────
     import os

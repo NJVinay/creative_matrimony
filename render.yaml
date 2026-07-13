@@ -1,0 +1,49 @@
+# Render Blueprint — deploys BOTH services from this single repo (free tier).
+# Dashboard → New → Blueprint → point at this GitHub repo.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Why Render for the backend: the chat feature uses WebSockets and needs a
+# long-running server — serverless platforms (Vercel/Netlify functions)
+# cannot host it. Render free web services support WebSockets.
+#
+# Free-tier caveats:
+#   - Services sleep after ~15 min idle (first request takes ~50 s to wake).
+#   - Disk is ephemeral: uploaded photos/charts are lost on redeploy.
+#     Move STORAGE_BACKEND to S3/R2 before real users upload photos.
+
+services:
+  # ── FastAPI backend ─────────────────────────────────────
+  - type: web
+    name: matrimony-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:application --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        sync: false          # paste your Neon connection string (postgresql://...)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false          # paste your Resend key
+      - key: CORS_ORIGINS
+        value: '["https://matrimony-frontend.onrender.com"]'  # update to your frontend URL
+      - key: COOKIE_SAMESITE
+        value: none          # frontend and backend are on different subdomains
+      - key: DEBUG
+        value: "false"
+
+  # ── Next.js frontend ────────────────────────────────────
+  - type: web
+    name: matrimony-frontend
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://matrimony-backend.onrender.com  # update to your backend URL

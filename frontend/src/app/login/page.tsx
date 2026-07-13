@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { apiFetch, tokenStore } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -87,7 +87,7 @@ function LoginForm() {
                 body: { phone, otp },
                 anonymous: true,
             });
-            tokenStore.set(res.access_token, res.refresh_token);
+            // Tokens arrive as httpOnly cookies set by the backend.
             toast("Welcome back!", "success");
             router.replace(res.is_new_user ? "/onboarding" : redirect);
         } catch (err) {

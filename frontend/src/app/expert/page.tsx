@@ -24,20 +24,44 @@ interface ExpertInquiry {
     created_at: string;
 }
 
+interface ExpertSession {
+    id: number;
+    category: string;
+    scheduled_at: string;
+    duration_minutes: number;
+    status: string;
+    notes: string | null;
+}
+
+const SESSION_STATUS_COLORS: Record<string, string> = {
+    requested: "text-orange-600",
+    confirmed: "text-green-600",
+    completed: "text-gray-500",
+    cancelled: "text-red-500",
+};
+
 export default function ExpertPage() {
     const router = useRouter();
     const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [inquiries, setInquiries] = useState<ExpertInquiry[]>([]);
+    const [sessions, setSessions] = useState<ExpertSession[]>([]);
 
     // Form
     const [category, setCategory] = useState("matchmaking");
     const [message, setMessage] = useState("");
     const [preferredTime, setPreferredTime] = useState("");
 
+    // Session booking form
+    const [sessionCategory, setSessionCategory] = useState("matchmaking");
+    const [sessionAt, setSessionAt] = useState("");
+    const [sessionDuration, setSessionDuration] = useState(30);
+    const [booking, setBooking] = useState(false);
+
     useEffect(() => {
         fetchInquiries();
+        fetchSessions();
     }, []);
 
     const fetchInquiries = async () => {
@@ -48,6 +72,50 @@ export default function ExpertPage() {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchSessions = async () => {
+        try {
+            const data = await apiFetch<ExpertSession[]>("/expert/sessions");
+            setSessions(data);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleBookSession = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!sessionAt) return;
+        setBooking(true);
+        try {
+            await apiFetch("/expert/sessions", {
+                method: "POST",
+                body: {
+                    category: sessionCategory,
+                    scheduled_at: new Date(sessionAt).toISOString(),
+                    duration_minutes: sessionDuration,
+                },
+            });
+            toast("Session requested! You'll be notified once it is confirmed.", "success");
+            setSessionAt("");
+            fetchSessions();
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : "Booking failed";
+            toast(msg, "error");
+        } finally {
+            setBooking(false);
+        }
+    };
+
+    const handleCancelSession = async (id: number) => {
+        try {
+            await apiFetch(`/expert/sessions/${id}/cancel`, { method: "PATCH" });
+            toast("Session cancelled.", "info");
+            fetchSessions();
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : "Cancel failed";
+            toast(msg, "error");
         }
     };
 
@@ -133,10 +201,91 @@ export default function ExpertPage() {
                             {submitting ? "Submitting..." : "Submit Request"}
                         </Button>
                     </form>
+
+                    {/* Session booking (Epic I1) */}
+                    <div className="mt-8 pt-6 border-t">
+                        <h2 className="text-xl font-bold mb-4">Book a Consultation Session</h2>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Free members: 1 session/month (30 min). Subscribers: 4 sessions/month (up to 60 min).
+                        </p>
+                        <form onSubmit={handleBookSession} className="space-y-4">
+                            <div className="space-y-2">
+                                <label htmlFor="session-category" className="text-sm font-medium">Session type</label>
+                                <select
+                                    id="session-category"
+                                    className="w-full p-2 rounded-md border bg-background"
+                                    value={sessionCategory}
+                                    onChange={(e) => setSessionCategory(e.target.value)}
+                                >
+                                    {CATEGORIES.map(c => (
+                                        <option key={c.value} value={c.value}>{c.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label htmlFor="session-at" className="text-sm font-medium">Date &amp; time</label>
+                                <Input
+                                    id="session-at"
+                                    type="datetime-local"
+                                    value={sessionAt}
+                                    onChange={(e) => setSessionAt(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label htmlFor="session-duration" className="text-sm font-medium">Duration</label>
+                                <select
+                                    id="session-duration"
+                                    className="w-full p-2 rounded-md border bg-background"
+                                    value={sessionDuration}
+                                    onChange={(e) => setSessionDuration(Number(e.target.value))}
+                                >
+                                    <option value={30}>30 minutes</option>
+                                    <option value={60}>60 minutes (subscribers)</option>
+                                </select>
+                            </div>
+                            <Button type="submit" disabled={booking || !sessionAt} className="w-full">
+                                {booking ? "Booking..." : "Request Session"}
+                            </Button>
+                        </form>
+                    </div>
                 </Card>
 
                 {/* Status / History */}
                 <div className="space-y-6">
+                    {/* My sessions */}
+                    <div>
+                        <h3 className="font-bold mb-4">My Sessions</h3>
+                        {sessions.length === 0 ? (
+                            <p className="text-gray-500 text-sm">No sessions booked yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {sessions.map(s => (
+                                    <Card key={s.id} className="p-4">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="inline-block px-2 py-1 rounded-full bg-primary-100 text-primary-800 text-xs font-bold capitalize">
+                                                {s.category.replace("_", " ")}
+                                            </span>
+                                            <span className={`text-xs font-medium capitalize ${SESSION_STATUS_COLORS[s.status] || ""}`}>
+                                                {s.status}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm">
+                                            {new Date(s.scheduled_at + "Z").toLocaleString()} · {s.duration_minutes} min
+                                        </p>
+                                        {(s.status === "requested" || s.status === "confirmed") && (
+                                            <button
+                                                onClick={() => handleCancelSession(s.id)}
+                                                className="text-xs text-red-500 hover:underline mt-2"
+                                            >
+                                                Cancel
+                                            </button>
+                                        )}
+                                    </Card>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <Card className="p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800">
                         <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2">Why use Expert Services?</h3>
                         <ul className="list-disc list-inside space-y-2 text-sm text-blue-700 dark:text-blue-400">

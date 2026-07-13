@@ -31,3 +31,4 @@ class MatchRecommendation(BaseModel):
     profile: ProfilePublicOut
     score: int
     reasons: List[str]
+    confidence: int = 100  # share of criteria evaluated (rises when horoscope data exists)

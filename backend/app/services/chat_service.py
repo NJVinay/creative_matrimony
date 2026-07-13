@@ -21,6 +21,13 @@ class ChatService:
     
     @staticmethod
     async def send_interest(db: AsyncSession, sender_id: int, receiver_id: int) -> Interest:
+        # Blocked pairs may not exchange interests (panic block)
+        from app.services.safety_service import are_blocked
+        sender_user_id = (await db.execute(select(Profile.user_id).where(Profile.id == sender_id))).scalar_one_or_none()
+        receiver_user_id = (await db.execute(select(Profile.user_id).where(Profile.id == receiver_id))).scalar_one_or_none()
+        if sender_user_id and receiver_user_id and await are_blocked(db, sender_user_id, receiver_user_id):
+            raise ValueError("You cannot send an interest to this profile.")
+
         # Check if already exists
         result = await db.execute(
             select(Interest).where(
@@ -195,6 +202,11 @@ class ChatService:
         )
         if not participant_check.scalar_one_or_none():
             raise ValueError("Not a participant of this chat room.")
+
+        # Rooms are deactivated when a participant blocks the other (panic block)
+        room = (await db.execute(select(ChatRoom).where(ChatRoom.id == room_id))).scalar_one_or_none()
+        if not room or not room.is_active:
+            raise ValueError("This chat is no longer active.")
 
         # Chat Moderation (Regex)
         email_pattern = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")

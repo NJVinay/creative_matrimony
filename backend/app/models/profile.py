@@ -55,7 +55,19 @@ class Profile(Base):
     display_name = Column(String(100), nullable=False)
     gender = Column(Enum(Gender), nullable=False)
     date_of_birth = Column(Date, nullable=False)
+    height_cm = Column(Integer, nullable=True)
     bio = Column(Text, nullable=True)
+
+    @property
+    def age(self) -> int | None:
+        """Age computed from date_of_birth (raw DOB is never exposed publicly)."""
+        if not self.date_of_birth:
+            return None
+        from datetime import date
+        today = date.today()
+        return today.year - self.date_of_birth.year - (
+            (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
+        )
 
     # ── Location (public: city + state ONLY) ─────────────
     city_village = Column(String(100), nullable=True)
