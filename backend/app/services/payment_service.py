@@ -14,10 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.payment import SubscriptionPlan, UserSubscription, PaymentTransaction, TransactionStatus
 from app.models.user import User
+from app.config import settings
 
 # Mock Provider — signs a deterministic token bound to the order so the
 # frontend can recompute it without exposing a real secret.
-MOCK_PAYMENT_SECRET = "MOCK_RAZORPAY_SECRET_DO_NOT_USE_IN_PROD"
+# Secret is read from settings.PAYMENT_PROVIDER_SECRET (env-overridable).
 
 
 class PaymentProvider:
@@ -37,7 +38,7 @@ class PaymentProvider:
         """Deterministic HMAC-SHA256 signature for the mock provider."""
         msg = f"{order_id}|{payment_id}".encode("utf-8")
         return hmac.new(
-            MOCK_PAYMENT_SECRET.encode("utf-8"),
+            settings.PAYMENT_PROVIDER_SECRET.encode("utf-8"),
             msg,
             hashlib.sha256,
         ).hexdigest()

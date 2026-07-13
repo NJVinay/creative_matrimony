@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { apiFetch, tokenStore } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export interface AuthUser {
     id: number;
@@ -30,13 +30,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
     const refresh = useCallback(async (): Promise<AuthUser | null> => {
-        const token = tokenStore.get();
-        if (!token) {
-            setUser(null);
-            setIsLoading(false);
-            return null;
-        }
-
         try {
             const me = await apiFetch<MeResponse>("/auth/me");
             const nextUser: AuthUser = {
@@ -62,14 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = useCallback(() => {
         apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
-        tokenStore.clear();
         setUser(null);
     }, []);
 
     const value = {
         user,
         isLoading,
-        isAuthenticated: !!user && !!tokenStore.get(),
+        isAuthenticated: !!user,
         refresh,
         logout,
     };

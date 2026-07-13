@@ -10,7 +10,7 @@ from typing import List
 class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────
     APP_NAME: str = "Creative Matrimony API"
-    DEBUG: bool = True
+    DEBUG: bool = False
     API_PREFIX: str = "/api"
 
     # ── Database (SQLite for local dev) ──────────────────
@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # ── File Storage (local for dev) ─────────────────────
     STORAGE_BACKEND: str = "local"  # "local" | "s3"
     LOCAL_STORAGE_DIR: str = "./uploads"
+
+    # ── Payment Provider ─────────────────────────────────
+    PAYMENT_PROVIDER: str = "mock"  # "mock" | "razorpay" (when implemented)
+    PAYMENT_PROVIDER_SECRET: str = "MOCK_RAZORPAY_SECRET_DO_NOT_USE_IN_PROD"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

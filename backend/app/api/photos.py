@@ -17,6 +17,7 @@ from app.middleware.auth import get_current_user, require_roles
 from app.models.profile import Profile, ProfilePhoto
 from app.models.user import User, UserRole
 from app.schemas.profile import ProfilePhotoOut
+from app.services.profile_service import get_profile_by_id, check_visibility
 
 router = APIRouter(prefix="/profiles", tags=["Photos"])
 
@@ -100,8 +101,15 @@ async def list_my_photos(
 async def list_profile_photos(
     profile_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ):
-    """List approved photos for a public profile (privacy: only approved)."""
+    """List approved photos for a profile the requester is allowed to see."""
+    profile = await get_profile_by_id(db, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    if not check_visibility(profile, user):
+        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
+
     result = await db.execute(
         select(ProfilePhoto)
         .where(

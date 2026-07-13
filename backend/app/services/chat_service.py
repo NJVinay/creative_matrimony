@@ -127,32 +127,58 @@ class ChatService:
     @staticmethod
     async def get_user_chats(db: AsyncSession, user_id: int) -> List[ChatRoom]:
         """Get all active chat rooms for a user with latest message preview."""
-        # Setup: Find rooms where user is participant
-        stmt = select(ChatRoom).join(ChatParticipant).where(
-            ChatParticipant.user_id == user_id,
-            ChatRoom.is_active == True
-        ).options(
-            selectinload(ChatRoom.participants).selectinload(ChatParticipant.user).selectinload(User.profile),
-            selectinload(ChatRoom.messages) # optimize: limit 1 desc? naive for MVP
+        # Find rooms where user is a participant; load participants eagerly for display,
+        # but DO NOT load messages (would pull entire history of every room).
+        stmt = (
+            select(ChatRoom)
+            .join(ChatParticipant)
+            .where(
+                ChatParticipant.user_id == user_id,
+                ChatRoom.is_active == True,
+            )
+            .options(
+                selectinload(ChatRoom.participants).selectinload(ChatParticipant.user).selectinload(User.profile),
+            )
         )
-        
+
         result = await db.execute(stmt)
-        return result.scalars().all()
+        rooms = list(result.scalars().all())
+
+        # Attach a `latest_message` preview per room (one extra query per room is acceptable
+        # for inbox rendering; we can replace with a window function later).
+        for room in rooms:
+            latest = await db.execute(
+                select(ChatMessage)
+                .where(ChatMessage.room_id == room.id)
+                .order_by(ChatMessage.created_at.desc())
+                .limit(1)
+            )
+            room.latest_message = latest.scalar_one_or_none()
+
+        return rooms
 
     @staticmethod
-    async def get_chat_history(db: AsyncSession, room_id: int, user_id: int, limit: int = 50) -> List[ChatMessage]:
+    async def get_chat_history(
+        db: AsyncSession, room_id: int, user_id: int, limit: int = 50, offset: int = 0
+    ) -> List[ChatMessage]:
         # Validate participation
         check = await db.execute(
-            select(ChatParticipant).where(ChatParticipant.room_id == room_id, ChatParticipant.user_id == user_id)
+            select(ChatParticipant).where(
+                ChatParticipant.room_id == room_id, ChatParticipant.user_id == user_id
+            )
         )
         if not check.scalar_one_or_none():
-            return [] # or error
-            
-        stmt = select(ChatMessage).where(ChatMessage.room_id == room_id)\
-            .order_by(ChatMessage.created_at.asc()) # .desc() + reverse in UI? asc is easier for log
-            
+            return []
+
+        stmt = (
+            select(ChatMessage)
+            .where(ChatMessage.room_id == room_id)
+            .order_by(ChatMessage.created_at.desc())  # most recent first
+            .offset(offset)
+            .limit(limit)
+        )
         result = await db.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     @staticmethod
     async def send_message(db: AsyncSession, room_id: int, sender_id: int, content: str) -> ChatMessage:

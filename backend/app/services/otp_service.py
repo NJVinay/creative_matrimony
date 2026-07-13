@@ -61,7 +61,37 @@ async def get_active_otp(db: AsyncSession, phone: str) -> OTPLog | None:
 
 
 async def is_on_cooldown(db: AsyncSession, phone: str) -> bool:
-    """Check if the phone is in OTP cooldown (too many failed attempts)."""
+    """
+    Check if the phone is in OTP cooldown.
+
+    Returns True if EITHER:
+      (a) Any unexpired OTPLog was created within the last
+          OTP_COOLDOWN_SECONDS seconds (per-phone rate limit, enforced as an
+          application-level cooldown so a first-time request cannot bypass
+          OTP_RATE_LIMIT_PER_PHONE).
+      (b) The most recent OTPLog has cooldown_until set (post-failed-attempts
+          lockout, which OTP_MAX_ATTEMPTS triggers).
+
+    Used by /auth/otp/request to throttle OTP requests before creating or
+    sending any new OTP. SlowAPI's IP-based limit (OTP_RATE_LIMIT_PER_IP) is
+    orthogonal: an attacker rotating phones cannot avoid (a) because it keys
+    on the phone from the request body.
+    """
+    # (a) Per-phone cooldown window — every freshly-issued OTP starts a cooldown.
+    recent_cutoff = _now_utc() - timedelta(seconds=settings.OTP_COOLDOWN_SECONDS)
+    recent_result = await db.execute(
+        select(OTPLog)
+        .where(
+            OTPLog.phone == phone,
+            OTPLog.created_at >= recent_cutoff,
+        )
+        .order_by(OTPLog.created_at.desc())
+        .limit(1)
+    )
+    if recent_result.scalar_one_or_none() is not None:
+        return True
+
+    # (b) Existing failed-attempts cooldown.
     otp_log = await get_active_otp(db, phone)
     if otp_log and otp_log.cooldown_until:
         cooldown_until = _aware_utc(otp_log.cooldown_until)

@@ -3,8 +3,9 @@ Match Models — Partner Preferences.
 Trace: @context_documents/MVP_BACKLOG.md Epic F
 """
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Float, Text, JSON
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, Float, Text, JSON, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from app.database import Base
 
@@ -42,8 +43,8 @@ class Preference(Base):
     occupation_category = Column(JSON, nullable=True)
     
     # Metadata
-    created_at = Column(String, default="now") # valid for MVP, usually datetime
-    updated_at = Column(String, default="now")
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     profile = relationship("Profile", back_populates="preference")

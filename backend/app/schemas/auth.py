@@ -11,8 +11,6 @@ class OTPRequestIn(BaseModel):
 class OTPRequestOut(BaseModel):
     message: str = "OTP sent successfully"
     expires_in_seconds: int = 300
-    # In dev mode, the OTP itself is returned for testing
-    dev_otp: str | None = None
 
 
 class OTPVerifyIn(BaseModel):

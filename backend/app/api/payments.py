@@ -13,6 +13,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.services.payment_service import PaymentService
+from app.config import settings
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -92,7 +93,9 @@ async def verify_payment(
 
 @router.post("/mock/sign")
 async def mock_sign(body: MockSignRequest):
-    """Generate a valid mock signature for testing the UI."""
+    """Mock-provider signing endpoint. Disabled when PAYMENT_PROVIDER is not 'mock' (e.g. production)."""
+    if settings.PAYMENT_PROVIDER != "mock":
+        raise HTTPException(status_code=404, detail="Not found")
     from app.services.payment_service import PaymentProvider
     return {"signature": PaymentProvider.sign(body.order_id, body.payment_id)}
 

@@ -62,9 +62,6 @@ async def request_otp(
     ))
 
     response = OTPRequestOut(expires_in_seconds=settings.OTP_EXPIRE_SECONDS)
-    # In dev mode, return OTP for testing convenience
-    if settings.DEBUG:
-        response.dev_otp = otp
     return response
 
 
@@ -115,7 +112,7 @@ async def verify_otp_endpoint(
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=True,
         samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
@@ -123,7 +120,7 @@ async def verify_otp_endpoint(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=True,
         samesite="lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
     )
@@ -172,7 +169,7 @@ async def refresh_token(
         key="access_token",
         value=new_access,
         httponly=True,
-        secure=not settings.DEBUG,
+        secure=True,
         samesite="lax",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )

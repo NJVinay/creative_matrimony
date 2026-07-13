@@ -43,15 +43,22 @@ async def get_my_horoscope(
 @router.get("/profile/{profile_id}", response_model=HoroscopeOut)
 async def get_public_horoscope(
     profile_id: int,
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
 ):
-    """Get horoscope details for a public profile view."""
+    """Get horoscope details for a profile the requester is allowed to see."""
+    from app.services.profile_service import get_profile_by_id, check_visibility
+    profile = await get_profile_by_id(db, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    if not check_visibility(profile, user):
+        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
+
     result = await db.execute(select(Horoscope).where(Horoscope.profile_id == profile_id))
     horoscope = result.scalar_one_or_none()
-    
     if not horoscope:
         raise HTTPException(status_code=404, detail="Horoscope not found")
-        
+
     return horoscope
 
 @router.put("/me", response_model=HoroscopeOut)

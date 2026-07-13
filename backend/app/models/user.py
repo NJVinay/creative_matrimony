@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, Enum, Text, func
 )
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -41,6 +42,8 @@ class User(Base):
     trial_ends_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    profile = relationship("Profile", backref="user", uselist=False)
 
 
 class OTPLog(Base):
