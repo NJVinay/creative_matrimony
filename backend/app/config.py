@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     OTP_MAX_ATTEMPTS: int = 3
     OTP_COOLDOWN_SECONDS: int = 600  # 10 minutes after max attempts
     OTP_PROVIDER: str = "mock"  # "mock" | "twilio" | "msg91"
+    # Testing aid: when true, the OTP is returned in the API response
+    # (the frontend shows it in a toast). ONLY for dev/staging — turn OFF
+    # before real users; anyone could log in as any phone number.
+    OTP_DEV_ECHO: bool = False
 
     # ── Rate Limiting ────────────────────────────────────
     OTP_RATE_LIMIT_PER_PHONE: str = "5/minute"

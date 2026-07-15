@@ -24,6 +24,28 @@ async def test_otp_login_sets_cookies_and_me(client):
 
 
 @pytest.mark.asyncio
+async def test_otp_dev_echo_flag(client, monkeypatch):
+    from app.config import settings
+
+    # Off by default: response must NOT leak the OTP
+    resp = await client.post("/api/auth/otp/request", json={"phone": "+919000000010"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["dev_otp"] is None
+
+    # Enabled: OTP is echoed for dev/staging testing (frontend shows a toast)
+    monkeypatch.setattr(settings, "OTP_DEV_ECHO", True)
+    resp = await client.post("/api/auth/otp/request", json={"phone": "+919000000011"})
+    assert resp.status_code == 200, resp.text
+    dev_otp = resp.json()["dev_otp"]
+    assert dev_otp and len(dev_otp) == 6 and dev_otp.isdigit()
+
+    # And the echoed OTP actually verifies
+    resp = await client.post("/api/auth/otp/verify",
+                             json={"phone": "+919000000011", "otp": dev_otp})
+    assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.asyncio
 async def test_trial_only_once_per_phone(client):
     await login(client, "+919000000002")
 

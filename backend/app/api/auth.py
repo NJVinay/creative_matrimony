@@ -77,8 +77,12 @@ async def request_otp(
         ip_address=request.client.host if request.client else None,
     ))
 
-    response = OTPRequestOut(expires_in_seconds=settings.OTP_EXPIRE_SECONDS)
-    return response
+    return OTPRequestOut(
+        expires_in_seconds=settings.OTP_EXPIRE_SECONDS,
+        # Testing aid — no SMS provider is integrated yet; the frontend
+        # displays this in a toast when present. Off in production.
+        dev_otp=otp if settings.OTP_DEV_ECHO else None,
+    )
 
 
 @router.post("/otp/verify", response_model=OTPVerifyOut)
