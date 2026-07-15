@@ -30,7 +30,7 @@ services:
       - key: RESEND_API_KEY
         sync: false          # paste your Resend key
       - key: CORS_ORIGINS
-        value: '["https://matrimony-frontend.onrender.com"]'  # update to your frontend URL
+        value: https://matrimony-frontend.onrender.com  # update to your ACTUAL frontend URL (Render assigns a random suffix, e.g. -r0zq)
       - key: COOKIE_SAMESITE
         value: none          # frontend and backend are on different subdomains
       - key: DEBUG
@@ -46,4 +46,4 @@ services:
     startCommand: npm run start
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        value: https://matrimony-backend.onrender.com  # update to your backend URL
+        value: https://matrimony-backend.onrender.com  # update to your ACTUAL backend URL (Render assigns a random suffix, e.g. -m9q3)

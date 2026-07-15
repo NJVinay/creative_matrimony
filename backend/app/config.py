@@ -3,6 +3,8 @@ Application settings — loaded from environment / .env file.
 All external service configs are mock-ready for local development.
 """
 
+import json
+
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -35,7 +37,23 @@ class Settings(BaseSettings):
     GLOBAL_RATE_LIMIT: str = "100/minute"
 
     # ── CORS ─────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    # Accepts a bare URL, a comma-separated list, or (for backward
+    # compatibility) a JSON array. Kept as `str` rather than `List[str]`
+    # because pydantic-settings JSON-decodes list-typed env vars *before*
+    # any validator runs, which would reject a plain URL outright.
+    CORS_ORIGINS: str = "http://localhost:3000"
+
+    @property
+    def cors_origins(self) -> List[str]:
+        raw = self.CORS_ORIGINS.strip()
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(origin).strip() for origin in parsed if str(origin).strip()]
+            except json.JSONDecodeError:
+                pass
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
     # ── Auth cookies ─────────────────────────────────────
     # Set COOKIE_SAMESITE="none" when the frontend runs on a different
