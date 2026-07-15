@@ -1,30 +1,46 @@
 @import "tailwindcss";
 
 @theme {
-  /* Wedding Palette — Warm Rose & Gold */
-  --color-primary-50: #fff1f2;
-  --color-primary-100: #ffe4e6;
-  --color-primary-200: #fecdd3;
-  --color-primary-300: #fda4af;
-  --color-primary-400: #fb7185;
-  --color-primary-500: #f43f5e;
-  --color-primary-600: #e11d48;
-  --color-primary-700: #be123c;
-  --color-primary-800: #9f1239;
-  --color-primary-900: #881337;
-  --color-primary-950: #4c0519;
+  /*
+   * Creative Matrimony — yellow-led brand system.
+   * Gold = warmth/celebration accents; indigo = actions/trust.
+   * Trace: FRONTEND_COMPETITOR_RESEARCH.md (palette tokens + contrast rules)
+   */
 
-  --color-gold-50: #fffbeb;
-  --color-gold-100: #fef3c7;
-  --color-gold-200: #fde68a;
-  --color-gold-300: #fcd34d;
-  --color-gold-400: #fbbf24;
-  --color-gold-500: #f59e0b;
-  --color-gold-600: #d97706;
-  --color-gold-700: #b45309;
-  --color-gold-800: #92400e;
-  --color-gold-900: #78350f;
-  --color-gold-950: #451a03;
+  /* Indigo action ramp — primary-600 is brand.indigo, 700 is brand.indigoHover */
+  --color-primary-50: #F3F1FF;
+  --color-primary-100: #E9E5FC;
+  --color-primary-200: #D4CDF4;
+  --color-primary-300: #B3A7E9;
+  --color-primary-400: #8B7BD8;
+  --color-primary-500: #5F4EB8;
+  --color-primary-600: #332A72;
+  --color-primary-700: #241D58;
+  --color-primary-800: #1B1645;
+  --color-primary-900: #131032;
+  --color-primary-950: #0B0920;
+
+  /* Brand gold ramp — 50 goldPale, 100 goldSoft, 400 gold, 600 goldHover */
+  --color-gold-50: #FFFCF0;
+  --color-gold-100: #FFF7D6;
+  --color-gold-200: #FDEEB0;
+  --color-gold-300: #F9DD7B;
+  --color-gold-400: #F4C542;
+  --color-gold-500: #E8B52B;
+  --color-gold-600: #D9A514;
+  --color-gold-700: #B58710;
+  --color-gold-800: #8F6A0E;
+  --color-gold-900: #6B4F0C;
+  --color-gold-950: #3E2D06;
+
+  /* Surfaces & lines */
+  --color-canvas: #F7F5F0;   /* surface.canvas */
+  --color-sand: #E9E3D5;     /* border.soft */
+
+  /* Status — always paired with icon + label in the UI, never color alone */
+  --color-success: #1F7A4D;
+  --color-warning: #A45C00;
+  --color-danger: #B42318;
 
   /* Typography */
   --font-sans: var(--font-inter);
@@ -34,11 +50,11 @@
 /* Custom Utilities */
 @layer utilities {
   .glass {
-    @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-xl;
+    @apply bg-white/80 backdrop-blur-lg border-b border-sand shadow-sm;
   }
-  
+
   .glass-dark {
-    @apply bg-gray-900/70 backdrop-blur-lg border border-white/10 shadow-xl;
+    @apply bg-gray-900/80 backdrop-blur-lg border-b border-white/10 shadow-sm;
   }
 
   .text-balance {
@@ -49,8 +65,8 @@
 /* Base Styles */
 @layer base {
   :root {
-    --background: 255 255 255;
-    --foreground: 23 23 23;
+    --background: 247 245 240;
+    --foreground: 31 41 55;
   }
 
   .dark {
@@ -59,7 +75,7 @@
   }
 
   body {
-    @apply bg-primary-50 text-gray-900 antialiased transition-colors duration-300;
+    @apply bg-canvas text-gray-800 antialiased transition-colors duration-300;
   }
 
   .dark body {
@@ -69,5 +85,17 @@
   /* Family Mode (Accessibility) */
   html.family-mode {
     font-size: 115%; /* Scale up all rem-based sizing across the app */
+  }
+
+  /* Motion is clarification, not decoration */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

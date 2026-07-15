@@ -135,5 +135,14 @@
         "unauthorized": "Please sign in to continue.",
         "forbidden": "You don't have permission to access this.",
         "not_found": "The requested resource was not found."
+    },
+    "steps": {
+        "title": "How it works",
+        "one_title": "Create your profile",
+        "one_desc": "Start with just the basics — for yourself or a family member. Privacy is on by default.",
+        "two_title": "Find compatible matches",
+        "two_desc": "Recommendations based on age, community, location and optional horoscope compatibility.",
+        "three_title": "Connect safely",
+        "three_desc": "Chat opens only after mutual interest. Your phone number is never shown."
     }
 }

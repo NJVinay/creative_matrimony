@@ -11,8 +11,9 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
             <div
                 ref={ref}
                 className={cn(
-                    "rounded-xl p-6 transition-all",
-                    glass ? "glass dark:glass-dark" : "bg-white dark:bg-gray-900 shadow-lg border border-gray-100 dark:border-gray-800",
+                    "rounded-xl p-6 transition-all duration-200",
+                    // Calm surfaces: white card, soft sand border, minimal shadow
+                    glass ? "glass dark:glass-dark" : "bg-white dark:bg-gray-900 shadow-sm border border-sand dark:border-gray-800",
                     className
                 )}
                 {...props}

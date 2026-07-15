@@ -9,14 +9,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = "primary", size = "md", isLoading, children, ...props }, ref) => {
-        const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:pointer-events-none";
+        const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
 
+        // Contrast rules (FRONTEND_COMPETITOR_RESEARCH.md):
+        // indigo buttons get white text; gold buttons get dark text —
+        // never white on gold, never yellow text on pale surfaces.
         const variants = {
-            primary: "bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 shadow-md",
-            secondary: "bg-gold-500 text-white hover:bg-gold-600 active:bg-gold-700 shadow-md",
-            outline: "border-2 border-primary-600 text-primary-600 hover:bg-primary-50 active:bg-primary-100",
+            primary: "bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800 shadow-sm",
+            secondary: "bg-gold-400 text-gray-800 hover:bg-gold-600 active:bg-gold-700 shadow-sm",
+            outline: "border border-primary-600 text-primary-600 hover:bg-primary-50 active:bg-primary-100 dark:border-primary-400 dark:text-primary-300 dark:hover:bg-primary-950",
             ghost: "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800",
-            danger: "bg-red-600 text-white hover:bg-red-700",
+            danger: "bg-danger text-white hover:bg-red-800",
         };
 
         const sizes = {
