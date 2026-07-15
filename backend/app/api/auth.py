@@ -107,11 +107,13 @@ async def verify_otp_endpoint(
     is_new = user is None
 
     if is_new:
+        # Naive UTC — asyncpg rejects tz-aware values for timestamp columns
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         user = User(
             phone=body.phone,
             role=UserRole.member,
-            trial_started_at=datetime.now(timezone.utc),
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=30),
+            trial_started_at=now,
+            trial_ends_at=now + timedelta(days=30),
         )
         db.add(user)
         await db.flush()

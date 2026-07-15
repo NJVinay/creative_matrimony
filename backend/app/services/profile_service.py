@@ -52,9 +52,10 @@ async def get_profile_by_id(db: AsyncSession, profile_id: int) -> Profile | None
     return result.scalar_one_or_none()
 
 
-def to_public_view(profile: Profile, user: User) -> dict:
+def to_public_view(profile: Profile, user: User | None) -> dict:
     """Convert a profile to its privacy-safe public representation.
     Enforces: city/state only, no phone/email, age instead of DOB.
+    `user` is the profile OWNER (for the is_verified badge); tolerates None.
     Trace: @context_documents/IDEA_PLANNER.md §2.4
     """
     return {
@@ -71,7 +72,7 @@ def to_public_view(profile: Profile, user: User) -> dict:
         "education_level": profile.education_level,
         "occupation_category": profile.occupation_category,
         "marital_status": profile.marital_status.value if profile.marital_status else None,
-        "is_verified": user.is_verified,
+        "is_verified": bool(user.is_verified) if user else False,
         "completion_pct": profile.completion_pct,
         "photo_blur_until_mutual": profile.photo_blur_until_mutual,
         # NEVER include: phone, email, date_of_birth, district_mandal, user_id

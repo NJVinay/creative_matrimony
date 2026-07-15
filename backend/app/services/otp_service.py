@@ -27,20 +27,23 @@ def _hash_otp(otp: str) -> str:
 
 
 def _now_utc() -> datetime:
-    """Timezone-aware UTC now (single source of truth)."""
-    return datetime.now(timezone.utc)
+    """Naive UTC now (single source of truth).
+
+    All DateTime columns are timestamp-without-timezone, and asyncpg
+    (PostgreSQL/Neon) rejects tz-aware values for them outright — so the
+    whole service works in naive UTC. SQLite tolerated aware values, which
+    is why this only surfaced in production.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _aware_utc(dt: datetime | None) -> datetime | None:
-    """
-    SQLite returns naive datetimes; treat stored timestamps as UTC
-    by stamping tzinfo on read. Centralized so we don't sprinkle
-    `replace(tzinfo=...)` calls through the codebase.
-    """
+def _naive_utc(dt: datetime | None) -> datetime | None:
+    """Normalize a stored timestamp to naive UTC for comparisons
+    (guards against legacy rows written with tzinfo attached)."""
     if dt is None:
         return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
 
 
@@ -94,7 +97,7 @@ async def is_on_cooldown(db: AsyncSession, phone: str) -> bool:
     # (b) Existing failed-attempts cooldown.
     otp_log = await get_active_otp(db, phone)
     if otp_log and otp_log.cooldown_until:
-        cooldown_until = _aware_utc(otp_log.cooldown_until)
+        cooldown_until = _naive_utc(otp_log.cooldown_until)
         return _now_utc() < cooldown_until
     return False
 
@@ -123,7 +126,7 @@ async def verify_otp(db: AsyncSession, phone: str, otp: str) -> bool:
 
     # Check cooldown
     if otp_log.cooldown_until:
-        cooldown_until = _aware_utc(otp_log.cooldown_until)
+        cooldown_until = _naive_utc(otp_log.cooldown_until)
         if _now_utc() < cooldown_until:
             return False
 

@@ -47,12 +47,16 @@ export default function Home() {
                 {t("hero.subtitle")}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button size="lg" className="w-full sm:w-auto">
-                  {t("hero.cta_primary")}
-                </Button>
-                <Button size="lg" variant="outline" className="w-full sm:w-auto bg-white/50 backdrop-blur-sm">
-                  {t("hero.cta_secondary")}
-                </Button>
+                <Link href="/register" className="w-full sm:w-auto">
+                  <Button size="lg" className="w-full">
+                    {t("hero.cta_primary")}
+                  </Button>
+                </Link>
+                <a href="#features" className="w-full sm:w-auto">
+                  <Button size="lg" variant="outline" className="w-full bg-white/50 backdrop-blur-sm">
+                    {t("hero.cta_secondary")}
+                  </Button>
+                </a>
               </div>
             </Card>
           </div>
@@ -60,7 +64,7 @@ export default function Home() {
       </main>
 
       {/* Features Grid */}
-      <section className="py-20 bg-white dark:bg-gray-950">
+      <section id="features" className="py-20 bg-white dark:bg-gray-950">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-3 gap-8">
             {[

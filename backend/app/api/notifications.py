@@ -25,6 +25,8 @@ class NotificationOut(BaseModel):
     is_read: bool
     created_at: Any # datetime
 
+    model_config = {"from_attributes": True}
+
 @router.get("", response_model=List[NotificationOut])
 async def list_notifications(
     user: Annotated[User, Depends(get_current_user)],

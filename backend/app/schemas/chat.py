@@ -38,8 +38,8 @@ class ChatRoomOut(BaseModel):
     id: int
     is_active: bool
     participants: List[ChatParticipantOut]
-    # last_message: Optional[ChatMessageOut] = None # For list preview
-    
+    latest_message: Optional[ChatMessageOut] = None  # inbox list preview
+
     model_config = ConfigDict(from_attributes=True)
 
 class MessageCreate(BaseModel):

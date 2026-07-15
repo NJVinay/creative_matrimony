@@ -13,10 +13,60 @@ from app.middleware.auth import get_current_user, decode_token
 from app.models.user import User
 from app.models.communication import InterestStatus, ChatParticipant
 from app.services.chat_service import ChatService
-from app.schemas.chat import InterestOut, ChatRoomOut, ChatMessageOut, MessageCreate
+from app.services.profile_service import to_public_view
+from app.schemas.chat import (
+    InterestOut, ChatRoomOut, ChatMessageOut, MessageCreate,
+    ChatParticipantOut, ChatParticipantUserOut,
+)
+from app.schemas.profile import ProfilePublicOut
 from sqlalchemy import select
 
 router = APIRouter(tags=["Communication"])
+
+
+# ── Response builders ──────────────────────────────────────
+# ProfilePublicOut needs the owner User for the is_verified badge, so these
+# are constructed explicitly via to_public_view rather than from_attributes
+# (validating raw Profile ORM objects would 500 — Profile has no is_verified).
+
+async def _interests_out(db: AsyncSession, interests) -> List[InterestOut]:
+    owner_ids = {p.user_id for i in interests for p in (i.sender, i.receiver) if p}
+    owners: dict[int, User] = {}
+    if owner_ids:
+        result = await db.execute(select(User).where(User.id.in_(owner_ids)))
+        owners = {u.id: u for u in result.scalars().all()}
+    return [
+        InterestOut(
+            id=i.id,
+            sender=ProfilePublicOut(**to_public_view(i.sender, owners.get(i.sender.user_id))),
+            receiver=ProfilePublicOut(**to_public_view(i.receiver, owners.get(i.receiver.user_id))),
+            status=i.status.value if hasattr(i.status, "value") else str(i.status),
+            created_at=i.created_at,
+        )
+        for i in interests
+        if i.sender and i.receiver
+    ]
+
+
+def _room_out(room) -> ChatRoomOut:
+    participants = []
+    for part in room.participants:
+        part_user = part.user
+        profile = part_user.profile if part_user else None
+        participants.append(ChatParticipantOut(
+            user_id=part.user_id,
+            user=ChatParticipantUserOut(
+                id=part_user.id,
+                profile=ProfilePublicOut(**to_public_view(profile, part_user)) if profile else None,
+            ) if part_user else None,
+        ))
+    latest = getattr(room, "latest_message", None)
+    return ChatRoomOut(
+        id=room.id,
+        is_active=room.is_active,
+        participants=participants,
+        latest_message=ChatMessageOut.model_validate(latest) if latest else None,
+    )
 
 # ── WebSocket Manager ──────────────────────────────────────
 # TODO(Scaling): The ConnectionManager uses an in-memory dictionary to track websockets.
@@ -77,7 +127,8 @@ async def get_received_interests(
 ):
     if not user.profile:
         raise HTTPException(status_code=400, detail="Profile required")
-    return await ChatService.get_interests(db, user.profile.id, type="received")
+    interests = await ChatService.get_interests(db, user.profile.id, type="received")
+    return await _interests_out(db, interests)
 
 @router.get("/interests/sent", response_model=List[InterestOut])
 async def get_sent_interests(
@@ -86,7 +137,8 @@ async def get_sent_interests(
 ):
     if not user.profile:
         raise HTTPException(status_code=400, detail="Profile required")
-    return await ChatService.get_interests(db, user.profile.id, type="sent")
+    interests = await ChatService.get_interests(db, user.profile.id, type="sent")
+    return await _interests_out(db, interests)
 
 @router.put("/interests/{id}/{action}")
 async def respond_to_interest(
@@ -122,7 +174,8 @@ async def list_chats(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    return await ChatService.get_user_chats(db, user.id)
+    rooms = await ChatService.get_user_chats(db, user.id)
+    return [_room_out(room) for room in rooms]
 
 @router.get("/chat/rooms/{room_id}/messages", response_model=List[ChatMessageOut])
 async def get_chat_history(
