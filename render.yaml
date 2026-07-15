@@ -29,6 +29,16 @@ services:
         generateValue: true
       - key: RESEND_API_KEY
         sync: false          # paste your Resend key
+      - key: OTP_PROVIDER
+        value: mock          # switch to "whatsapp" or "fast2sms" once credentials are set
+      - key: OTP_DEV_ECHO
+        value: "false"       # "true" shows the OTP in the UI — testing only, NEVER in production
+      - key: FAST2SMS_API_KEY
+        sync: false          # optional: Fast2SMS Dev API key (OTP route)
+      - key: WHATSAPP_TOKEN
+        sync: false          # optional: WhatsApp Cloud API access token
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false          # optional: WhatsApp business phone number ID
       - key: CORS_ORIGINS
         value: https://matrimony-frontend.onrender.com  # update to your ACTUAL frontend URL (Render assigns a random suffix, e.g. -r0zq)
       - key: COOKIE_SAMESITE

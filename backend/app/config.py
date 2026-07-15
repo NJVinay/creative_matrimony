@@ -29,11 +29,20 @@ class Settings(BaseSettings):
     OTP_EXPIRE_SECONDS: int = 300  # 5 minutes
     OTP_MAX_ATTEMPTS: int = 3
     OTP_COOLDOWN_SECONDS: int = 600  # 10 minutes after max attempts
-    OTP_PROVIDER: str = "mock"  # "mock" | "twilio" | "msg91"
+    OTP_PROVIDER: str = "mock"  # "mock" | "fast2sms" | "whatsapp"
     # Testing aid: when true, the OTP is returned in the API response
     # (the frontend shows it in a toast). ONLY for dev/staging — turn OFF
     # before real users; anyone could log in as any phone number.
     OTP_DEV_ECHO: bool = False
+
+    # ── OTP delivery: Fast2SMS (India-only SMS, shared DLT route) ──
+    FAST2SMS_API_KEY: str = ""
+
+    # ── OTP delivery: WhatsApp Cloud API (Meta) ─────────────────────
+    WHATSAPP_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_TEMPLATE_NAME: str = "otp_verification"
+    WHATSAPP_TEMPLATE_LANGUAGE: str = "en"
 
     # ── Rate Limiting ────────────────────────────────────
     OTP_RATE_LIMIT_PER_PHONE: str = "5/minute"

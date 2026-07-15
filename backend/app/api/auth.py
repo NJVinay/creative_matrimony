@@ -22,7 +22,9 @@ from app.schemas.auth import (
     ContactUpdateIn, OTPRequestIn, OTPRequestOut, OTPVerifyIn, OTPVerifyOut,
     TokenRefreshIn, TokenRefreshOut, UserOut,
 )
-from app.services.otp_service import create_otp, is_on_cooldown, send_otp, verify_otp
+from app.services.otp_service import (
+    OTPDeliveryError, create_otp, is_on_cooldown, send_otp, verify_otp,
+)
 from app.rate_limit import limiter
 from app.models.user import RevokedToken
 
@@ -67,7 +69,12 @@ async def request_otp(
 
     # Create and send OTP
     otp = await create_otp(db, body.phone)
-    await send_otp(body.phone, otp)
+    try:
+        await send_otp(body.phone, otp)
+    except OTPDeliveryError as exc:
+        # Raising rolls back the OTPLog insert, so the failed attempt
+        # does not start the per-phone cooldown — the user can retry.
+        raise HTTPException(status_code=502, detail=str(exc))
 
     # Audit log
     db.add(AuditLog(
