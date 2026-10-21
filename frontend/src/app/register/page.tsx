@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -26,6 +27,7 @@ interface OtpVerifyOut {
 function RegisterForm() {
     const router = useRouter();
     const { toast } = useToast();
+    const { refresh } = useAuth();
     const [phone, setPhone] = useState("");
     const [otp, setOtp] = useState("");
     const [stage, setStage] = useState<"phone" | "otp">("phone");
@@ -83,7 +85,9 @@ function RegisterForm() {
                 body: { phone, otp },
                 anonymous: true,
             });
-            // Tokens arrive as httpOnly cookies set by the backend.
+            // Tokens arrive as httpOnly cookies set by the backend. Load the user into
+            // auth context first, or AuthGuard on the next page bounces to /login.
+            await refresh();
             if (res.is_new_user) {
                 toast("Welcome! Let's set up your profile.", "success");
                 router.replace("/profile/create");

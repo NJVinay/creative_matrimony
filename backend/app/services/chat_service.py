@@ -3,7 +3,6 @@ Chat Service.
 Trace: @context_documents/MVP_BACKLOG.md Epic G
 """
 
-import re
 from typing import List, Optional
 from sqlalchemy import select, and_, or_, update
 from sqlalchemy.orm import selectinload
@@ -14,6 +13,7 @@ from app.models.communication import Interest, InterestStatus, ChatRoom, ChatPar
 from app.models.user import User
 from app.models.profile import Profile
 from app.models.notification import NotificationType
+from app.services.moderation import check_chat_message
 from app.services.notification_service import NotificationService
 
 class ChatService:
@@ -208,17 +208,8 @@ class ChatService:
         if not room or not room.is_active:
             raise ValueError("This chat is no longer active.")
 
-        # Chat Moderation (Regex)
-        email_pattern = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
-        phone_pattern = re.compile(r"\b\d{10,12}\b")
-        abusive_terms = ["abuse", "harass", "hateword1", "hateword2", "doxx"] # Basic blacklist
-        
-        lower_content = content.lower()
-        if email_pattern.search(content) or phone_pattern.search(content):
-            raise ValueError("Message blocked: Sharing contact information (email/phone) is not allowed before mutual consent or via chat. Please keep conversations on the platform.")
-        
-        if any(term in lower_content for term in abusive_terms):
-            raise ValueError("Message blocked: Your message contains language that violates our community guidelines.")
+        # Chat moderation: contact sharing + abusive language (raises ValueError)
+        check_chat_message(content)
 
         msg = ChatMessage(room_id=room_id, sender_id=sender_id, content=content)
         db.add(msg)

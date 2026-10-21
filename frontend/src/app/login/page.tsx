@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -27,7 +28,10 @@ function LoginForm() {
     const router = useRouter();
     const params = useSearchParams();
     const { toast } = useToast();
-    const redirect = params.get("redirect") || "/dashboard";
+    const { refresh } = useAuth();
+    // Only same-site paths: "//evil.com" or "https://…" would be an open redirect
+    const rawRedirect = params.get("redirect") || "";
+    const redirect = /^\/(?![/\\])/.test(rawRedirect) ? rawRedirect : "/dashboard";
 
     const [phone, setPhone] = useState("");
     const [otp, setOtp] = useState("");
@@ -87,7 +91,10 @@ function LoginForm() {
                 body: { phone, otp },
                 anonymous: true,
             });
-            // Tokens arrive as httpOnly cookies set by the backend.
+            // Tokens arrive as httpOnly cookies set by the backend. Load the user into
+            // auth context before navigating, or the guarded target page still sees
+            // "logged out" and bounces straight back to /login.
+            await refresh();
             toast("Welcome back!", "success");
             router.replace(res.is_new_user ? "/onboarding" : redirect);
         } catch (err) {

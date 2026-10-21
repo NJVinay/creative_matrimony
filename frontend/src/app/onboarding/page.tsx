@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { dobError, maxDobFor } from "@/lib/age";
+import { useProfile } from "@/lib/useProfile";
 
 interface OnboardingData {
     profile_mode: string;
@@ -24,6 +26,7 @@ interface OnboardingData {
 export default function OnboardingPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { refreshProfile } = useProfile();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
 
@@ -45,6 +48,8 @@ export default function OnboardingPage() {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const dobErr = dobError(formData.date_of_birth, formData.gender);
+
     const nextStep = () => setStep(prev => prev + 1);
     const prevStep = () => setStep(prev => prev - 1);
 
@@ -61,8 +66,10 @@ export default function OnboardingPage() {
                 method: "POST",
                 body: payload,
             });
+            // Load the new profile into context so the dashboard unlocks without a reload
+            await refreshProfile();
             toast("Profile created successfully!", "success");
-            router.push("/dashboard"); // Future dashboard page
+            router.push("/dashboard");
         } catch (err: unknown) {
             toast(err instanceof Error ? err.message : "Failed to create profile.", "error");
         } finally {
@@ -197,6 +204,8 @@ export default function OnboardingPage() {
                                             type="date"
                                             value={formData.date_of_birth}
                                             onChange={(e) => updateField("date_of_birth", e.target.value)}
+                                            max={maxDobFor(formData.gender || "female")}
+                                            error={dobErr ?? undefined}
                                             required
                                         />
                                     </div>
@@ -207,7 +216,7 @@ export default function OnboardingPage() {
                                     <Button
                                         className="flex-1"
                                         onClick={nextStep}
-                                        disabled={!formData.display_name || !formData.gender || !formData.date_of_birth}
+                                        disabled={!formData.display_name || !formData.gender || !formData.date_of_birth || !!dobErr}
                                     >
                                         Continue
                                     </Button>

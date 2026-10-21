@@ -74,6 +74,12 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: str = "lax"  # "lax" | "none" | "strict"
     COOKIE_SECURE: bool = True
 
+    # ── Content moderation ───────────────────────────────
+    # Extra blocked words/phrases for chat (comma-separated), added to the
+    # built-in list in app/services/moderation.py. Whole-word matching;
+    # a trailing "*" also matches longer forms (e.g. "idiot*").
+    MODERATION_BLOCKED_TERMS: str = ""
+
     # ── File Storage (local for dev) ─────────────────────
     STORAGE_BACKEND: str = "local"  # "local" | "s3"
     LOCAL_STORAGE_DIR: str = "./uploads"

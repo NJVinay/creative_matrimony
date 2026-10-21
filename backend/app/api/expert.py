@@ -19,7 +19,7 @@ from app.models.expert import (
 from app.models.payment import UserSubscription
 from app.models.notification import NotificationType
 from app.schemas.expert import (
-    ExpertInquiryCreate, ExpertInquiryOut,
+    ExpertInquiryCreate, ExpertInquiryOut, ExpertInquiryAdminOut,
     SessionCreate, SessionOut,
     CareAssignmentCreate, CareAssignmentOut,
     CareTaskCreate, CareTaskOut,
@@ -28,6 +28,7 @@ from app.schemas.expert import (
 from app.middleware.auth import get_current_user, require_roles
 from app.services.notification_service import NotificationService
 from app.services.email_service import send_email
+from app.services.profile_service import get_profiles_by_user_ids
 
 router = APIRouter(prefix="/expert", tags=["Expert Services"])
 
@@ -448,14 +449,25 @@ async def close_care_assignment(
 
 # ── Admin: inquiries (existing) ─────────────────────────────
 
-@router.get("/admin/all", response_model=list[ExpertInquiryOut])
+@router.get("/admin/all", response_model=list[ExpertInquiryAdminOut])
 async def list_all_inquiries(
     user: Annotated[User, Depends(require_roles(UserRole.admin))],
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    """Admin: List all inquiries."""
+    """Admin: List all inquiries, with the member's profile id + name for linking
+    (a user id is not a profile id, so /profile/{user_id} shows the wrong person)."""
     result = await db.execute(select(ExpertInquiry).order_by(ExpertInquiry.created_at.desc()))
-    return result.scalars().all()
+    inquiries = result.scalars().all()
+    profiles = await get_profiles_by_user_ids(db, (i.user_id for i in inquiries))
+    out = []
+    for inquiry in inquiries:
+        profile = profiles.get(inquiry.user_id)
+        out.append(ExpertInquiryAdminOut(
+            **ExpertInquiryOut.model_validate(inquiry).model_dump(),
+            profile_id=profile.id if profile else None,
+            display_name=profile.display_name if profile else None,
+        ))
+    return out
 
 @router.patch("/admin/{inquiry_id}/resolve")
 async def resolve_inquiry(

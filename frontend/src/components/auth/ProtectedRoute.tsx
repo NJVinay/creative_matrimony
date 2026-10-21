@@ -10,7 +10,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            router.replace("/login");
+            // Come back here after login
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
+            router.replace(`/login?redirect=${next}`);
         }
     }, [isLoading, isAuthenticated, router]);
 

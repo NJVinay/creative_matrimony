@@ -19,7 +19,7 @@ from app.schemas.profile import (
 )
 from app.services.profile_service import (
     calculate_completion, get_profile_by_user_id, get_profile_by_id,
-    to_public_view, check_visibility,
+    to_public_view, check_visibility, is_activatable,
 )
 
 router = APIRouter(prefix="/profiles", tags=["Profiles"])
@@ -59,7 +59,7 @@ async def create_profile(
         partner_preferences=body.partner_preferences,
     )
     profile.completion_pct = calculate_completion(profile)
-    profile.is_active = profile.completion_pct >= 30.0  # Activate with minimal fields
+    profile.is_active = is_activatable(profile)  # Activate with minimal fields
 
     # Women-first safety defaults (P0): photo blur on by default for women;
     # verified-only visibility when opted in. Both reversible in privacy settings.
@@ -105,7 +105,7 @@ async def update_my_profile(
             setattr(profile, field, value)
 
     profile.completion_pct = calculate_completion(profile)
-    profile.is_active = profile.completion_pct >= 30.0
+    profile.is_active = is_activatable(profile)
 
     await db.flush()
     await db.refresh(profile)

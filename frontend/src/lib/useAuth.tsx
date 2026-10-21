@@ -31,7 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const refresh = useCallback(async (): Promise<AuthUser | null> => {
         try {
-            const me = await apiFetch<MeResponse>("/auth/me");
+            // anonymous: a logged-out visitor is a normal state here, not a reason to
+            // redirect — public pages (/, /legal/*) must stay reachable.
+            const me = await apiFetch<MeResponse>("/auth/me", { anonymous: true });
             const nextUser: AuthUser = {
                 id: me.id,
                 phone: me.phone,

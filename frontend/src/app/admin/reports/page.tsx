@@ -12,10 +12,32 @@ interface ReportItem {
     id: number;
     reporter_id: number;
     target_user_id: number;
+    // Profile pages are keyed by PROFILE id, which differs from the user id
+    reporter_profile_id: number | null;
+    reporter_name: string | null;
+    target_profile_id: number | null;
+    target_name: string | null;
     reason: string;
     evidence_text: string | null;
     status: string;
     created_at: string;
+}
+
+function MemberLink({ profileId, name, userId, className }: {
+    profileId: number | null;
+    name: string | null;
+    userId: number;
+    className: string;
+}) {
+    if (profileId === null) {
+        return <span className="text-gray-500">User #{userId} (no profile)</span>;
+    }
+    return (
+        <Link href={`/profile/${profileId}`} className={`${className} hover:underline`}>
+            {name || `Profile #${profileId}`}
+            <span className="block text-xs font-normal text-gray-400">user #{userId}</span>
+        </Link>
+    );
 }
 
 function AdminReportsInner() {
@@ -72,7 +94,7 @@ function AdminReportsInner() {
                                 <tr>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">ID</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Reporter</th>
-                                    <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 text-red-600">Target User</th>
+                                    <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 text-red-600">Reported Member</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Reason</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 w-1/4">Evidence</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Date</th>
@@ -88,13 +110,21 @@ function AdminReportsInner() {
                                 ) : reports.map(report => (
                                     <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
                                         <td className="px-6 py-4 font-mono text-gray-500">{report.id}</td>
-                                        <td className="px-6 py-4 font-bold text-blue-600">
-                                            User {report.reporter_id}
+                                        <td className="px-6 py-4 font-bold">
+                                            <MemberLink
+                                                profileId={report.reporter_profile_id}
+                                                name={report.reporter_name}
+                                                userId={report.reporter_id}
+                                                className="text-blue-600"
+                                            />
                                         </td>
-                                        <td className="px-6 py-4 font-bold text-red-600 hover:underline cursor-pointer">
-                                            <Link href={`/profile/${report.target_user_id}`}>
-                                                User {report.target_user_id}
-                                            </Link>
+                                        <td className="px-6 py-4 font-bold">
+                                            <MemberLink
+                                                profileId={report.target_profile_id}
+                                                name={report.target_name}
+                                                userId={report.target_user_id}
+                                                className="text-red-600"
+                                            />
                                         </td>
                                         <td className="px-6 py-4 capitalize font-semibold">
                                             {report.reason.replace('_', ' ')}

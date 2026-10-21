@@ -5,6 +5,15 @@ const apiOrigin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const wsOrigin = apiOrigin.replace(/^http/, "ws");
 
 const nextConfig: NextConfig = {
+    images: {
+        // Member photos and horoscope charts are served straight from the API
+        // (/uploads/...). Next 16's optimizer refuses upstreams that resolve to a
+        // private IP (localhost in dev), and member photos should not be copied
+        // into the optimizer cache, so every <Image> is served as-is.
+        unoptimized: true,
+        // Keeps the API host allowed if optimization is ever re-enabled.
+        remotePatterns: [new URL(`${apiOrigin}/uploads/**`)],
+    },
     async headers() {
         return [
             {

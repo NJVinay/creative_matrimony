@@ -13,6 +13,7 @@ from app.models.match import Preference
 from app.models.communication import Interest
 from app.models.horoscope import Horoscope, Rasi, Star
 from app.models.safety import UserBlock
+from app.services.profile_service import legal_age_condition, meets_minimum_age
 
 # Classical ordering used for porutham-style counting
 STAR_ORDER = list(Star)   # 27 nakshatras, Ashwini → Revati
@@ -170,6 +171,9 @@ class MatchingService:
         profile = result.scalar_one_or_none()
         if not profile:
             return []
+        # Legacy under-age profiles (created before the DOB check) get no matches
+        if not meets_minimum_age(profile.date_of_birth, profile.gender):
+            return []
 
         pref = await MatchingService.get_or_create_preference(db, user_profile_id)
 
@@ -201,7 +205,10 @@ class MatchingService:
         ).where(
             Profile.id.notin_(excluded_ids),
             Profile.visibility != "hidden",
-            Profile.is_active == True
+            Profile.is_active == True,
+            # Hard filter, independent of preferences: age preferences only
+            # add score points, so they can never be what keeps minors out.
+            legal_age_condition(),
         )
         if blocked_user_ids:
             query = query.where(Profile.user_id.notin_(blocked_user_ids))

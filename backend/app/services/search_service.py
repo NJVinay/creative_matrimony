@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.profile import Profile, Gender, MaritalStatus, Visibility
 from app.models.user import User
+from app.services.profile_service import legal_age_condition, years_ago
 
 
 class SearchFilters:
@@ -51,14 +52,15 @@ async def _build_filter_conditions(
 ) -> list:
     """Shared WHERE-clause builder used by both search_profiles and count_profiles."""
     today = date.today()
-    max_dob = today.replace(year=today.year - filters.min_age)
-    min_dob = today.replace(year=today.year - filters.max_age - 1)
+    max_dob = years_ago(filters.min_age, today)
+    min_dob = years_ago(filters.max_age + 1, today)
 
     conditions = [
         Profile.is_active.is_(True),
         Profile.visibility != Visibility.hidden,
         Profile.date_of_birth <= max_dob,
         Profile.date_of_birth > min_dob,
+        legal_age_condition(today),  # never list anyone under the legal marriage age
     ]
 
     if current_user_id:

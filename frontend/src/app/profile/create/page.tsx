@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { dobError, maxDobFor } from "@/lib/age";
+import { useProfile } from "@/lib/useProfile";
 import { useToast } from "@/components/ui/Toast";
 import { AuthGuard } from "@/components/ui/AuthGuard";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +39,7 @@ const TOTAL_STEPS = 4;
 function ProfileCreateInner() {
     const router = useRouter();
     const { toast } = useToast();
+    const { refreshProfile } = useProfile();
     const [step, setStep] = useState(1);
     const [submitting, setSubmitting] = useState(false);
     const [form, setForm] = useState<ProfileFormState>({
@@ -62,10 +65,12 @@ function ProfileCreateInner() {
         setForm(prev => ({ ...prev, [key]: value }));
     };
 
+    const dobErr = dobError(form.date_of_birth, form.gender);
+
     const canAdvance = (): boolean => {
         if (step === 1) return true; // Mode step is always valid
         if (step === 2) {
-            return form.display_name.trim().length >= 2 && form.date_of_birth !== "";
+            return form.display_name.trim().length >= 2 && form.date_of_birth !== "" && !dobErr;
         }
         if (step === 3) {
             return form.city_village.trim().length > 0 && form.state.trim().length > 0;
@@ -75,7 +80,7 @@ function ProfileCreateInner() {
 
     const handleNext = () => {
         if (!canAdvance()) {
-            toast("Please complete the required fields before continuing.", "error");
+            toast(step === 2 && dobErr ? dobErr : "Please complete the required fields before continuing.", "error");
             return;
         }
         setStep(s => Math.min(s + 1, TOTAL_STEPS));
@@ -109,6 +114,8 @@ function ProfileCreateInner() {
                     partner_preferences: form.partner_preferences || null,
                 },
             });
+            // Load the new profile into context so the dashboard unlocks without a reload
+            await refreshProfile();
             toast("Profile created! Welcome aboard.", "success");
             router.replace("/dashboard");
         } catch (err) {
@@ -232,7 +239,8 @@ function ProfileCreateInner() {
                                     type="date"
                                     value={form.date_of_birth}
                                     onChange={e => update("date_of_birth", e.target.value)}
-                                    max={new Date().toISOString().split("T")[0]}
+                                    max={maxDobFor(form.gender)}
+                                    error={dobErr ?? undefined}
                                 />
                             </div>
                         </div>
