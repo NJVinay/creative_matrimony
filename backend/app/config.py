@@ -27,8 +27,12 @@ class Settings(BaseSettings):
     # ── OTP ──────────────────────────────────────────────
     OTP_LENGTH: int = 6
     OTP_EXPIRE_SECONDS: int = 300  # 5 minutes
-    OTP_MAX_ATTEMPTS: int = 3
-    OTP_COOLDOWN_SECONDS: int = 600  # 10 minutes after max attempts
+    OTP_MAX_ATTEMPTS: int = 3  # checks per code; the code is dead after that
+    OTP_RESEND_SECONDS: int = 60  # gap between OTP sends to one phone from one device
+    # Codes per phone per rolling hour for devices that have never logged in to
+    # it: bounds guessing at this x OTP_MAX_ATTEMPTS checks an hour. Devices that
+    # have logged in to the phone before are exempt, so it cannot lock out the owner.
+    OTP_MAX_SENDS_PER_HOUR: int = 5
     OTP_PROVIDER: str = "mock"  # "mock" | "fast2sms" | "whatsapp"
     # Testing aid: when true, the OTP is returned in the API response
     # (the frontend shows it in a toast). ONLY for dev/staging — turn OFF

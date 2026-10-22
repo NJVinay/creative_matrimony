@@ -70,7 +70,9 @@ async def test_full_user_journey():
         resp = await ravi.post("/api/search", json={"min_age": 18, "max_age": 45, "gender": "female"})
         assert resp.status_code == 200, resp.text
         assert resp.json()["total"] >= 1
-        resp = await ravi.get("/api/matches/recommendations")
+        # limit=200: equal scores tie, so the default top 20 depends on how many
+        # other members earlier tests left in the shared test database
+        resp = await ravi.get("/api/matches/recommendations?limit=200")
         assert resp.status_code == 200, resp.text
         recs = resp.json()
         assert any(r["profile"]["id"] == p_priya["id"] for r in recs)

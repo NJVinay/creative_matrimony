@@ -3,7 +3,7 @@
 ORM model package — import all models here so Alembic and init_db() discover them.
 """
 
-from app.models.user import User, OTPLog  # noqa: F401
+from app.models.user import User, OTPLog, OTPPhoneLock  # noqa: F401
 from app.models.profile import Profile, ProfilePhoto  # noqa: F401
 from app.models.taxonomy import (  # noqa: F401
     RegionGroup,

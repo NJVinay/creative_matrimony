@@ -6,13 +6,16 @@ Trace: @context_documents/MVP_BACKLOG.md Epic E
 from datetime import date
 from typing import Optional, List
 
-from sqlalchemy import select, and_, or_, desc, func
+from sqlalchemy import select, and_, or_, desc, func, false
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.profile import Profile, Gender, MaritalStatus, Visibility
+from app.models.profile import Profile, Gender, MaritalStatus
 from app.models.user import User
-from app.services.profile_service import legal_age_condition, years_ago
+from app.services.profile_service import (
+    is_underage_viewer, legal_age_condition, visibility_condition, years_ago,
+)
+from app.services.safety_service import get_blocked_user_ids
 
 
 class SearchFilters:
@@ -47,24 +50,35 @@ class SearchFilters:
 
 
 async def _build_filter_conditions(
+    db: AsyncSession,
     filters: SearchFilters,
-    current_user_id: Optional[int] = None,
+    viewer: Optional[User] = None,
 ) -> list:
-    """Shared WHERE-clause builder used by both search_profiles and count_profiles."""
+    """Shared WHERE-clause builder used by both search_profiles and count_profiles.
+    Every rule that depends on the viewer is applied here, in SQL, so the
+    total and the pages always agree."""
     today = date.today()
     max_dob = years_ago(filters.min_age, today)
     min_dob = years_ago(filters.max_age + 1, today)
 
     conditions = [
         Profile.is_active.is_(True),
-        Profile.visibility != Visibility.hidden,
+        # Same rule as the profile page: never hidden, verified-only for verified viewers
+        visibility_condition(viewer),
         Profile.date_of_birth <= max_dob,
         Profile.date_of_birth > min_dob,
         legal_age_condition(today),  # never list anyone under the legal marriage age
     ]
 
-    if current_user_id:
-        conditions.append(Profile.user_id != current_user_id)
+    if viewer is not None:
+        # A viewer below the legal marriage age (legacy row) is shown no one
+        if await is_underage_viewer(db, viewer):
+            return [false()]
+        conditions.append(Profile.user_id != viewer.id)
+        # Panic block: blocked users never see each other, in either direction
+        blocked = await get_blocked_user_ids(db, viewer.id)
+        if blocked:
+            conditions.append(Profile.user_id.notin_(blocked))
 
     if filters.gender:
         conditions.append(Profile.gender == Gender(filters.gender))
@@ -97,14 +111,14 @@ async def _build_filter_conditions(
 async def search_profiles(
     db: AsyncSession,
     filters: SearchFilters,
-    current_user_id: Optional[int] = None
+    viewer: Optional[User] = None
 ) -> List[Profile]:
     """
-    Execute search with dynamic filters.
-    Enforces visibility rules (hidden profiles are excluded).
-    Verified-only logic is handled at the API layer (depends on viewer context).
+    Execute search with dynamic filters, as seen by `viewer`: visibility
+    (hidden, verified-only), legal age, blocks and the viewer's own profile
+    are all applied in SQL.
     """
-    conditions = await _build_filter_conditions(filters, current_user_id)
+    conditions = await _build_filter_conditions(db, filters, viewer)
 
     query = (
         select(Profile)
@@ -121,10 +135,10 @@ async def search_profiles(
 async def count_profiles(
     db: AsyncSession,
     filters: SearchFilters,
-    current_user_id: Optional[int] = None
+    viewer: Optional[User] = None
 ) -> int:
     """Count total matches for pagination (same WHERE clause as search_profiles)."""
-    conditions = await _build_filter_conditions(filters, current_user_id)
+    conditions = await _build_filter_conditions(db, filters, viewer)
     stmt = select(func.count(Profile.id)).where(*conditions)
     result = await db.execute(stmt)
     return int(result.scalar() or 0) 

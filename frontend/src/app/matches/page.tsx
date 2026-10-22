@@ -23,7 +23,11 @@ interface Profile {
     occupation_category?: string;
     marital_status: string;
     community?: { id: number; name: string };
-    profile_photo?: { url: string };
+    photo_blur_until_mutual?: boolean;
+    // Resolved for this viewer by the API: the photo URL only when they may
+    // see it; photo_locked only while blur-until-mutual still applies to them
+    profile_photo?: { url: string } | null;
+    photo_locked?: boolean;
 }
 interface Recommendation {
     profile: Profile;
@@ -115,8 +119,14 @@ export default function MatchesPage() {
                                                 src={staticUrl(profile.profile_photo.url)}
                                                 alt={profile.display_name}
                                                 fill
+                                                sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                                                 className="object-cover"
                                             />
+                                        </div>
+                                    ) : profile.photo_locked ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center gap-2 px-6 text-center bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                                            <span className="text-4xl" aria-hidden>🔒</span>
+                                            <span className="text-sm font-medium">Photos visible after mutual interest</span>
                                         </div>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-4xl bg-gray-100 dark:bg-gray-800">

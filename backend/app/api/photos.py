@@ -17,7 +17,7 @@ from app.middleware.auth import get_current_user, require_roles
 from app.models.profile import Profile, ProfilePhoto
 from app.models.user import User, UserRole
 from app.schemas.profile import ProfilePhotoOut
-from app.services.profile_service import get_profile_by_id, check_visibility
+from app.services.profile_service import get_profile_for_viewer, can_view_photos
 
 router = APIRouter(prefix="/profiles", tags=["Photos"])
 
@@ -103,12 +103,11 @@ async def list_profile_photos(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ):
-    """List approved photos for a profile the requester is allowed to see."""
-    profile = await get_profile_by_id(db, profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found.")
-    if not check_visibility(profile, user):
-        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
+    """List approved photos for a profile the requester is allowed to see.
+    Photo blur is enforced here, not just in the UI: until mutual interest the
+    photos come back locked (storage_key=None, locked=True), so the viewer
+    learns how many there are but never gets the file URLs."""
+    profile = await get_profile_for_viewer(db, profile_id, user)
 
     result = await db.execute(
         select(ProfilePhoto)
@@ -118,7 +117,10 @@ async def list_profile_photos(
         )
         .order_by(ProfilePhoto.is_primary.desc(), ProfilePhoto.created_at.desc())
     )
-    return result.scalars().all()
+    photos = [ProfilePhotoOut.model_validate(p) for p in result.scalars().all()]
+    if photos and not await can_view_photos(db, user, profile):
+        photos = [p.model_copy(update={"storage_key": None, "locked": True}) for p in photos]
+    return photos
 
 
 # ── Admin moderation ──────────────────────────────────────

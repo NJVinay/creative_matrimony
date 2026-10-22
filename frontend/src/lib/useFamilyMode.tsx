@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
+import { PREF_KEYS, savePreference, useHtmlState } from "@/lib/htmlPreference";
 
 interface FamilyModeContextType {
     isFamilyMode: boolean;
@@ -10,25 +11,13 @@ interface FamilyModeContextType {
 const FamilyModeContext = createContext<FamilyModeContextType | undefined>(undefined);
 
 export function FamilyModeProvider({ children }: { children: React.ReactNode }) {
-    const [isFamilyMode, setIsFamilyMode] = useState(() => {
-        if (typeof window === "undefined") return false;
-        const stored = localStorage.getItem("familyMode") === "true";
-        document.documentElement.classList.toggle("family-mode", stored);
-        return stored;
-    });
+    // The `family-mode` class on <html> is the source of truth (applied before paint by the layout script)
+    const isFamilyMode = useHtmlState(html => html.classList.contains("family-mode"), false);
 
     const toggleFamilyMode = () => {
-        setIsFamilyMode(prev => {
-            const newValue = !prev;
-            if (newValue) {
-                document.documentElement.classList.add("family-mode");
-                localStorage.setItem("familyMode", "true");
-            } else {
-                document.documentElement.classList.remove("family-mode");
-                localStorage.setItem("familyMode", "false");
-            }
-            return newValue;
-        });
+        const next = !isFamilyMode;
+        document.documentElement.classList.toggle("family-mode", next);
+        savePreference(PREF_KEYS.familyMode, String(next));
     };
 
     return (

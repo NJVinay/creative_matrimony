@@ -133,9 +133,9 @@ export function TaxonomySelect({
     return (
         <div className="space-y-3">
             <div>
-                <label className="text-sm font-medium block mb-1">Religion</label>
+                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Religion</label>
                 <select
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
                     value={value.religion_id ?? ""}
                     onChange={e => {
                         const id = e.target.value ? Number(e.target.value) : null;
@@ -153,9 +153,9 @@ export function TaxonomySelect({
             </div>
 
             <div>
-                <label className="text-sm font-medium block mb-1">Community</label>
+                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Community</label>
                 <select
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm disabled:opacity-50"
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 disabled:opacity-50"
                     value={value.community_id ?? ""}
                     onChange={e => {
                         const id = e.target.value ? Number(e.target.value) : null;
@@ -179,9 +179,9 @@ export function TaxonomySelect({
             </div>
 
             <div>
-                <label className="text-sm font-medium block mb-1">Sub-Caste</label>
+                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Sub-Caste</label>
                 <select
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm disabled:opacity-50"
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 disabled:opacity-50"
                     value={value.subcaste_id ?? ""}
                     onChange={e => {
                         const id = e.target.value ? Number(e.target.value) : null;

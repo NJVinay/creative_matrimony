@@ -18,8 +18,8 @@ from app.schemas.profile import (
     ProfileOut, ProfilePublicOut,
 )
 from app.services.profile_service import (
-    calculate_completion, get_profile_by_user_id, get_profile_by_id,
-    to_public_view, check_visibility, is_activatable,
+    calculate_completion, get_profile_by_user_id, get_profile_for_viewer,
+    to_public_view, is_activatable,
 )
 
 router = APIRouter(prefix="/profiles", tags=["Profiles"])
@@ -143,21 +143,11 @@ async def get_public_profile(
 ):
     """
     Get a profile's public view.
-    Enforces: visibility rules, verified-only constraint, location privacy.
+    Enforces: legal age, visibility rules, verified-only constraint, blocks,
+    location privacy (admins/moderators bypass the access checks to review).
     NEVER exposes phone, email, or precise location.
     """
-    profile = await get_profile_by_id(db, profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found.")
-
-    # Check visibility rules
-    if not check_visibility(profile, user):
-        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
-
-    # Blocked users (either direction) can never see each other
-    from app.services.safety_service import are_blocked
-    if await are_blocked(db, user.id, profile.user_id):
-        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
+    profile = await get_profile_for_viewer(db, profile_id, user)
 
     # Get profile owner for is_verified flag
     from sqlalchemy import select

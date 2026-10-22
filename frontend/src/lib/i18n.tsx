@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
+import { PREF_KEYS, savePreference, useHtmlState } from "@/lib/htmlPreference";
 import en from "@/i18n/en.json";
 import te from "@/i18n/te.json";
 
@@ -27,15 +28,13 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-    const [locale, setLocaleState] = useState<Locale>(() => {
-        if (typeof window === "undefined") return "en";
-        const saved = localStorage.getItem("app-locale");
-        return saved === "te" ? "te" : "en";
-    });
+    // <html lang> holds the active locale (restored before paint by the layout script).
+    // Hydration renders "en" like the server did, then switches to a saved "te".
+    const locale = useHtmlState<Locale>(html => (html.lang === "te" ? "te" : "en"), "en");
 
     const setLocale = (l: Locale) => {
-        setLocaleState(l);
-        localStorage.setItem("app-locale", l);
+        document.documentElement.lang = l;
+        savePreference(PREF_KEYS.locale, l);
     };
 
     const t = (key: string) => {

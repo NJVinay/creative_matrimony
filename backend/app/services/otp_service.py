@@ -2,26 +2,50 @@
 OTP service — generation, hashing, verification, and sending.
 Providers: mock (console log), fast2sms (India SMS), whatsapp (Cloud API).
 Trace: @context_documents/BACKEND_PLANNER.md §1, @context_documents/SECURITY_PLANNER.md §2
+
+Throttling model. Each code is bound to the browser that requested it (its
+otp_device cookie), and only that browser can check it, so guesses from anyone
+else never use up the owner's code. Per phone:
+  - one code per OTP_RESEND_SECONDS per device (only a device's own requests
+    start its window, so nobody can hold up someone else's request);
+  - devices that have never logged in to the phone share OTP_MAX_SENDS_PER_HOUR
+    codes an hour, which bounds guessing (and SMS volume) however many IPs or
+    devices an attacker uses. Devices that have logged in to the phone before
+    are exempt, so a stranger can never lock the owner's browser out.
+Requests for one phone are serialised (lock_phone), so parallel requests cannot
+slip past either limit.
 """
 
+import enum
 import hashlib
+import hmac
+import math
 import random
 import re
+import secrets
 import string
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.user import OTPLog
+from app.models.user import OTPLog, OTPPhoneLock
+
+# httpOnly cookie naming the browser a code was sent from (see device_hash)
+OTP_DEVICE_COOKIE = "otp_device"
+_DEVICE_ID_RE = re.compile(r"[A-Za-z0-9_-]{32,128}")
+# Rolling window of OTP_MAX_SENDS_PER_HOUR
+_SEND_CAP_WINDOW = timedelta(hours=1)
 
 
 class OTPDeliveryError(RuntimeError):
     """Raised when the configured provider could not deliver the OTP.
     The API layer turns this into a clean 502 so the client can retry
-    (the DB transaction rolls back, so no cooldown is burned)."""
+    (the DB transaction rolls back, so no resend window is burned)."""
 
 
 def _generate_otp(length: int = 6) -> str:
@@ -55,103 +79,204 @@ def _naive_utc(dt: datetime | None) -> datetime | None:
     return dt
 
 
-async def get_active_otp(db: AsyncSession, phone: str) -> OTPLog | None:
-    """Get the most recent unexpired, unverified OTP for a phone."""
+def _seconds_until(moment: datetime) -> int:
+    """Whole seconds from now until `moment`, rounded up (0 if past)."""
+    return max(0, math.ceil((moment - _now_utc()).total_seconds()))
+
+
+def new_device_id() -> str:
+    """A fresh otp_device cookie value (random, unguessable)."""
+    return secrets.token_urlsafe(32)
+
+
+def device_hash(device_id: str | None) -> str | None:
+    """What OTPLog stores for a device: sha256 of a well-formed otp_device
+    value, or None when the request carried no (or a malformed) cookie."""
+    if not device_id or not _DEVICE_ID_RE.fullmatch(device_id):
+        return None
+    return hashlib.sha256(device_id.encode()).hexdigest()
+
+
+async def lock_phone(db: AsyncSession, phone: str) -> None:
+    """Serialise OTP requests for one phone until this transaction ends, so
+    the throttle checks and the new code's insert are atomic (parallel
+    requests would otherwise all pass the checks before any insert).
+    Row lock on otp_phone_locks in PostgreSQL; SQLite locks the database on
+    the insert. Must run before the checks; the commit or rollback releases it."""
+    insert = pg_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    await db.execute(insert(OTPPhoneLock).values(phone=phone).on_conflict_do_nothing())
+    await db.execute(
+        update(OTPPhoneLock).where(OTPPhoneLock.phone == phone).values(locked_at=_now_utc())
+    )
+
+
+async def get_active_otp(db: AsyncSession, phone: str, device: str) -> OTPLog | None:
+    """The newest unexpired, unverified code sent to `phone` for this device."""
     cutoff = _now_utc() - timedelta(seconds=settings.OTP_EXPIRE_SECONDS)
     result = await db.execute(
         select(OTPLog)
         .where(
             OTPLog.phone == phone,
+            OTPLog.device_hash == device,
             OTPLog.verified_at.is_(None),
             OTPLog.created_at >= cutoff,
         )
-        .order_by(OTPLog.created_at.desc())
+        .order_by(OTPLog.created_at.desc(), OTPLog.id.desc())
         .limit(1)
     )
     return result.scalar_one_or_none()
 
 
-async def is_on_cooldown(db: AsyncSession, phone: str) -> bool:
+async def resend_remaining_seconds(db: AsyncSession, phone: str, device: str | None) -> int:
     """
-    Check if the phone is in OTP cooldown.
+    Seconds until this device may be sent another code for this phone (0 = now).
 
-    Returns True if EITHER:
-      (a) Any unexpired OTPLog was created within the last
-          OTP_COOLDOWN_SECONDS seconds (per-phone rate limit, enforced as an
-          application-level cooldown so a first-time request cannot bypass
-          OTP_RATE_LIMIT_PER_PHONE).
-      (b) The most recent OTPLog has cooldown_until set (post-failed-attempts
-          lockout, which OTP_MAX_ATTEMPTS triggers).
-
-    Used by /auth/otp/request to throttle OTP requests before creating or
-    sending any new OTP. SlowAPI's IP-based limit (OTP_RATE_LIMIT_PER_IP) is
-    orthogonal: an attacker rotating phones cannot avoid (a) because it keys
-    on the phone from the request body.
+    One code per OTP_RESEND_SECONDS per (phone, device). Only the device's own
+    requests start its window, so a stranger requesting codes for the number
+    never holds up the owner. A request without a device cookie has no window
+    of its own; phone_cap_remaining_seconds bounds those. Codes already used
+    to log in don't count, so a member can log out and straight back in.
     """
-    # (a) Per-phone cooldown window — every freshly-issued OTP starts a cooldown.
-    recent_cutoff = _now_utc() - timedelta(seconds=settings.OTP_COOLDOWN_SECONDS)
-    recent_result = await db.execute(
-        select(OTPLog)
+    if device is None:
+        return 0
+    last_sent = await db.scalar(
+        select(func.max(OTPLog.created_at)).where(
+            OTPLog.phone == phone,
+            OTPLog.device_hash == device,
+            OTPLog.verified_at.is_(None),
+        )
+    )
+    if last_sent is None:
+        return 0
+    return _seconds_until(_naive_utc(last_sent) + timedelta(seconds=settings.OTP_RESEND_SECONDS))
+
+
+def _known_devices(phone: str):
+    """Devices that have logged in to `phone` (a verified code), as a subquery."""
+    return select(OTPLog.device_hash).where(
+        OTPLog.phone == phone,
+        OTPLog.verified_at.is_not(None),
+        OTPLog.device_hash.is_not(None),
+    )
+
+
+async def is_known_device(db: AsyncSession, phone: str, device: str | None) -> bool:
+    """Has this device logged in to this phone before?"""
+    if device is None:
+        return False
+    found = await db.scalar(
+        select(OTPLog.id).where(
+            OTPLog.phone == phone,
+            OTPLog.device_hash == device,
+            OTPLog.verified_at.is_not(None),
+        ).limit(1)
+    )
+    return found is not None
+
+
+async def phone_cap_remaining_seconds(db: AsyncSession, phone: str, device: str | None) -> int:
+    """
+    Seconds until this device may be sent a code under the per-phone cap (0 = now).
+
+    Devices that have never logged in to the phone share OTP_MAX_SENDS_PER_HOUR
+    codes per rolling hour. With OTP_MAX_ATTEMPTS checks per code, that caps
+    guessing at their product per phone per hour, however many IPs or fresh
+    devices are used, and caps the SMS a stranger can trigger. A device that
+    has logged in to the phone before is exempt (only its resend window
+    applies), so using up the cap never locks the owner's browser out.
+    """
+    if await is_known_device(db, phone, device):
+        return 0
+    sent = (await db.scalars(
+        select(OTPLog.created_at)
         .where(
             OTPLog.phone == phone,
-            OTPLog.created_at >= recent_cutoff,
+            OTPLog.created_at >= _now_utc() - _SEND_CAP_WINDOW,
+            or_(OTPLog.device_hash.is_(None), OTPLog.device_hash.notin_(_known_devices(phone))),
         )
-        .order_by(OTPLog.created_at.desc())
-        .limit(1)
-    )
-    if recent_result.scalar_one_or_none() is not None:
-        return True
-
-    # (b) Existing failed-attempts cooldown.
-    otp_log = await get_active_otp(db, phone)
-    if otp_log and otp_log.cooldown_until:
-        cooldown_until = _naive_utc(otp_log.cooldown_until)
-        return _now_utc() < cooldown_until
-    return False
+        .order_by(OTPLog.created_at)
+    )).all()
+    over = len(sent) - settings.OTP_MAX_SENDS_PER_HOUR
+    if over < 0:
+        return 0
+    # Wait until enough of the oldest codes leave the window to get under the cap
+    return max(1, _seconds_until(_naive_utc(sent[over]) + _SEND_CAP_WINDOW))
 
 
-async def create_otp(db: AsyncSession, phone: str) -> str:
-    """Generate and store a new OTP. Returns the raw OTP (for mock sending)."""
+async def create_otp(db: AsyncSession, phone: str, device: str) -> str:
+    """Generate and store a new code for `phone`, checkable only by `device`
+    (a device_hash). Returns the raw OTP (for sending)."""
     otp = _generate_otp(settings.OTP_LENGTH)
     otp_log = OTPLog(
         phone=phone,
         otp_hash=_hash_otp(otp),
         attempts=0,
+        device_hash=device,
     )
     db.add(otp_log)
     await db.flush()
     return otp
 
 
-async def verify_otp(db: AsyncSession, phone: str, otp: str) -> bool:
+class OTPCheck(str, enum.Enum):
+    """Outcome of verify_otp."""
+    verified = "verified"
+    invalid = "invalid"      # wrong code, or no unexpired unused code for this phone + device
+    exhausted = "exhausted"  # this device's current code has used all OTP_MAX_ATTEMPTS checks
+
+
+async def verify_otp(db: AsyncSession, phone: str, otp: str, device: str | None) -> OTPCheck:
     """
-    Verify an OTP. Returns True if valid, False otherwise.
-    Increments attempt counter; sets cooldown after max attempts.
+    Check `otp` against the newest unexpired, unused code this device
+    requested for the phone. Without a device (no otp_device cookie) nothing
+    is checked.
+
+    A code allows at most OTP_MAX_ATTEMPTS checks, however many requests race:
+    each check is reserved with one conditional UPDATE (attempts = attempts + 1
+    in SQL, only while attempts < max) BEFORE the hash is compared, so parallel
+    guesses cannot all read a stale count. Codes per phone are capped (see the
+    module docstring), which bounds guessing per phone.
+
+    Only the requesting device can check a code, so a stranger's wrong guesses
+    for someone's number never touch the owner's code. Wrong guesses only burn
+    the code they were made against: the next code gets its own budget, so a
+    typo on an old, abandoned code never counts against a later login.
+
+    The caller must commit on failure too, or the reserved check rolls back.
     """
-    otp_log = await get_active_otp(db, phone)
+    if device is None:
+        return OTPCheck.invalid
+    otp_log = await get_active_otp(db, phone, device)
     if not otp_log:
-        return False
+        return OTPCheck.invalid
 
-    # Check cooldown
-    if otp_log.cooldown_until:
-        cooldown_until = _naive_utc(otp_log.cooldown_until)
-        if _now_utc() < cooldown_until:
-            return False
-
-    # Verify hash
-    if _hash_otp(otp) == otp_log.otp_hash:
-        otp_log.verified_at = _now_utc()
-        await db.flush()
-        return True
-
-    # Wrong OTP — increment attempts
-    otp_log.attempts += 1
-    if otp_log.attempts >= settings.OTP_MAX_ATTEMPTS:
-        otp_log.cooldown_until = _now_utc() + timedelta(
-            seconds=settings.OTP_COOLDOWN_SECONDS
+    attempts = await db.scalar(
+        update(OTPLog)
+        .where(
+            OTPLog.id == otp_log.id,
+            OTPLog.verified_at.is_(None),
+            func.coalesce(OTPLog.attempts, 0) < settings.OTP_MAX_ATTEMPTS,
         )
-    await db.flush()
-    return False
+        .values(attempts=func.coalesce(OTPLog.attempts, 0) + 1)
+        .returning(OTPLog.attempts)
+        .execution_options(synchronize_session=False)
+    )
+    if attempts is None:
+        # No checks left — or a parallel request just used the code to log in
+        used = await db.scalar(select(OTPLog.verified_at).where(OTPLog.id == otp_log.id))
+        return OTPCheck.invalid if used else OTPCheck.exhausted
+
+    if not hmac.compare_digest(_hash_otp(otp), otp_log.otp_hash):
+        return OTPCheck.exhausted if attempts >= settings.OTP_MAX_ATTEMPTS else OTPCheck.invalid
+
+    # Claim the code atomically, so one code logs in only once
+    claimed = await db.execute(
+        update(OTPLog)
+        .where(OTPLog.id == otp_log.id, OTPLog.verified_at.is_(None))
+        .values(verified_at=_now_utc())
+        .execution_options(synchronize_session=False)
+    )
+    return OTPCheck.verified if claimed.rowcount == 1 else OTPCheck.invalid
 
 
 # ── Delivery providers ──────────────────────────────────────

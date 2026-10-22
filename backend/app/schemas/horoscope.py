@@ -18,6 +18,9 @@ class HoroscopeOut(HoroscopeBase):
     id: int
     profile_id: int
     chart_images: List[str] = []
+    # True when charts exist but are withheld: the owner blurs photos until mutual
+    # interest and the viewer has not unlocked them (chart_images is then empty).
+    charts_locked: bool = False
 
     class Config:
         from_attributes = True

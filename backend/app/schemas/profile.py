@@ -141,6 +141,10 @@ class ProfileOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PhotoRefOut(BaseModel):
+    url: str  # path on the API origin, e.g. /uploads/profiles/...
+
+
 class ProfilePublicOut(BaseModel):
     """Public view — enforces location privacy (city+state only), no phone/email."""
     id: int
@@ -159,12 +163,22 @@ class ProfilePublicOut(BaseModel):
     is_verified: bool
     completion_pct: float
     photo_blur_until_mutual: bool = False
+    # Filled only by list endpoints that resolve photo access for the viewer
+    # (match recommendations, search): the display photo when the viewer may
+    # see it, else None. A missing photo alone never means "locked" — clients
+    # read photo_locked, which only those endpoints set (approved photos exist,
+    # blurred until mutual interest, not yet unlocked for this viewer).
+    profile_photo: PhotoRefOut | None = None
+    photo_locked: bool = False
 
 
 class ProfilePhotoOut(BaseModel):
     id: int
     profile_id: int
-    storage_key: str
+    # None (with locked=True) when the owner blurs photos until mutual interest
+    # and the viewer has not unlocked them: the file URL is never handed out.
+    storage_key: str | None
+    locked: bool = False
     is_primary: bool
     is_approved: bool | None
     rejection_reason: str | None

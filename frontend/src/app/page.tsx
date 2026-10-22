@@ -19,7 +19,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-gold-50 dark:bg-gray-950">
       {/* Header */}
-      <header className="fixed top-0 w-full z-10 glass dark:glass-dark">
+      <header className="fixed top-0 w-full z-10 glass">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl font-serif font-bold text-primary-700 dark:text-primary-300">
@@ -136,7 +136,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-8 bg-white dark:bg-gray-900 border-t border-sand dark:border-gray-800">
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-          <span>© {new Date().getFullYear()} Creative Matrimony</span>
+          {/* Page is prerendered at build time; the client's year may be newer */}
+          <span suppressHydrationWarning>© {new Date().getFullYear()} Creative Matrimony</span>
           <div className="flex gap-4">
             <Link href="/legal/terms" className="hover:text-primary-600 dark:hover:text-primary-300">Terms</Link>
             <Link href="/legal/privacy" className="hover:text-primary-600 dark:hover:text-primary-300">Privacy</Link>
