@@ -19,6 +19,11 @@ class ExpertInquiryOut(BaseModel):
     class Config:
         from_attributes = True
 
+class ExpertInquiryAdminOut(ExpertInquiryOut):
+    """Admin queue row: the member's profile id (for /profile links) and name."""
+    profile_id: Optional[int] = None
+    display_name: Optional[str] = None
+
 
 # ── Epic I1: consultation sessions ──────────────────────────
 

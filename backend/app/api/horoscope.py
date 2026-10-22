@@ -15,6 +15,7 @@ from app.models.profile import Profile, ProfilePhoto # borrowing storage logic?
 from app.models.horoscope import Horoscope
 from app.schemas.horoscope import HoroscopeOut, HoroscopeUpdate, HoroscopeCreate
 from app.middleware.auth import get_current_user
+from app.services.profile_service import get_profile_for_viewer, can_view_photos
 from app.config import settings
 import os
 import uuid
@@ -42,20 +43,19 @@ async def get_public_horoscope(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
 ):
-    """Get horoscope details for a profile the requester is allowed to see."""
-    from app.services.profile_service import get_profile_by_id, check_visibility
-    profile = await get_profile_by_id(db, profile_id)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found.")
-    if not check_visibility(profile, user):
-        raise HTTPException(status_code=403, detail="This profile is not visible to you.")
+    """Get horoscope details for a profile the requester is allowed to see.
+    Chart images follow the owner's photo blur: withheld until mutual interest."""
+    profile = await get_profile_for_viewer(db, profile_id, user)
 
     result = await db.execute(select(Horoscope).where(Horoscope.profile_id == profile_id))
     horoscope = result.scalar_one_or_none()
     if not horoscope:
         raise HTTPException(status_code=404, detail="Horoscope not found")
 
-    return horoscope
+    out = HoroscopeOut.model_validate(horoscope)
+    if out.chart_images and not await can_view_photos(db, user, profile):
+        out = out.model_copy(update={"chart_images": [], "charts_locked": True})
+    return out
 
 @router.put("/me", response_model=HoroscopeOut)
 async def update_my_horoscope(

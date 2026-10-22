@@ -26,10 +26,30 @@ export class ApiError extends Error {
 
 export interface ApiFetchOptions extends Omit<RequestInit, "body"> {
     body?: unknown; // auto-stringified when object
-    /** When true, skip Authorization header (used for OTP request) */
+    /**
+     * When true, a 401 is returned to the caller instead of redirecting to /login.
+     * Use for requests that are fine to make logged out (OTP, the /auth/me probe);
+     * protected pages redirect via AuthGuard / ProtectedRoute.
+     */
     anonymous?: boolean;
     /** When true, do not throw on non-2xx (caller handles) */
     allowNon2xx?: boolean;
+}
+
+/** Human-readable message from an error payload, incl. FastAPI 422 lists. */
+function errorDetail(payload: unknown): string | undefined {
+    if (!payload || typeof payload !== "object" || !("detail" in payload)) return undefined;
+    const detail = (payload as { detail: unknown }).detail;
+    if (!Array.isArray(detail)) return String(detail);
+    // [{ loc: ["body", "date_of_birth"], msg: "..." }, ...] → "Date of birth: ..."
+    return detail
+        .map(item => {
+            const { loc, msg } = (item ?? {}) as { loc?: unknown[]; msg?: string };
+            const field = Array.isArray(loc) && loc.length > 1 ? String(loc[loc.length - 1]) : "";
+            const label = field ? `${field.charAt(0).toUpperCase()}${field.slice(1).replace(/_/g, " ")}: ` : "";
+            return `${label}${msg ?? "Invalid value"}`;
+        })
+        .join(" ");
 }
 
 function buildUrl(path: string): string {
@@ -97,9 +117,7 @@ export async function apiFetch<T = unknown>(
 
     if (!res.ok && !allowNon2xx) {
         const detail =
-            (payload && typeof payload === "object" && "detail" in payload
-                ? String((payload as Record<string, unknown>).detail)
-                : undefined) ||
+            errorDetail(payload) ||
             (typeof payload === "string" ? payload : undefined) ||
             res.statusText ||
             `Request failed (${res.status})`;

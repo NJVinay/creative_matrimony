@@ -2,7 +2,8 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { apiFetch, staticUrl } from "@/lib/api";
+import { apiFetch, ApiError, staticUrl } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { AuthGuard } from "@/components/ui/AuthGuard";
 import { Button } from "@/components/ui/Button";
@@ -31,7 +32,10 @@ interface PublicProfile {
 
 interface Photo {
     id: number;
-    storage_key: string;
+    // null + locked while the owner blurs photos until mutual interest:
+    // the API withholds the file URL, so there is nothing to show yet.
+    storage_key: string | null;
+    locked?: boolean;
     is_primary: boolean;
 }
 
@@ -43,7 +47,12 @@ interface HoroscopeData {
     time_of_birth?: string;
     place_of_birth?: string;
     chart_images?: string[];
+    charts_locked?: boolean; // charts exist but are withheld until mutual interest
 }
+
+// Staff open member profiles from the moderation queues; the API lets them
+// past visibility, block, photo-blur and age checks so reports can be reviewed.
+const REVIEWER_ROLES = new Set(["admin", "moderator"]);
 
 const REPORT_REASONS = [
     { value: "fake_profile", label: "Fake profile" },
@@ -56,6 +65,8 @@ const REPORT_REASONS = [
 
 function PublicProfileInner({ profileId }: { profileId: number }) {
     const { toast } = useToast();
+    const { user } = useAuth();
+    const isReviewer = REVIEWER_ROLES.has(user?.role ?? "");
     const [profile, setProfile] = useState<PublicProfile | null>(null);
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [horoscope, setHoroscope] = useState<HoroscopeData | null>(null);
@@ -70,31 +81,28 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
         let cancelled = false;
         (async () => {
             try {
-                const [p, photosData] = await Promise.all([
+                // Photos and horoscope are optional (a 404 horoscope just means none)
+                const [p, photosData, hs] = await Promise.all([
                     apiFetch<PublicProfile>(`/profiles/${profileId}`),
-                    apiFetch<Photo[]>(`/profiles/${profileId}/photos`).catch(() => []),
+                    apiFetch<Photo[]>(`/profiles/${profileId}/photos`).catch(() => [] as Photo[]),
+                    apiFetch<HoroscopeData>(`/horoscope/profile/${profileId}`).catch(() => null),
                 ]);
-                
+
                 if (!cancelled) {
                     setProfile(p);
                     setPhotos(photosData);
-                }
-
-                try {
-                    const hs = await apiFetch<HoroscopeData>(`/horoscope/profile/${profileId}`);
-                    if (!cancelled) setHoroscope(hs);
-                } catch {
-                    // Ignore horoscope fetch errors
+                    setHoroscope(hs);
                 }
             } catch (err) {
-                const msg = err instanceof Error ? err.message : "Failed to load profile";
-                if (msg.includes("404") || msg.includes("not found")) {
+                if (cancelled) return;
+                const status = err instanceof ApiError ? err.status : 0;
+                if (status === 404) {
                     setNotFound(true);
-                } else if (msg.includes("403") || msg.includes("not visible")) {
+                } else if (status === 403) {
                     toast("This profile is not visible to you.", "error");
                     setNotFound(true);
                 } else {
-                    toast(msg, "error");
+                    toast(err instanceof Error ? err.message : "Failed to load profile", "error");
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -104,21 +112,6 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
             cancelled = true;
         };
     }, [profileId, toast]);
-
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                const list = await apiFetch<Photo[]>(`/profiles/${profileId}/photos`);
-                if (!cancelled) setPhotos(list);
-            } catch {
-                // Photos are optional, ignore errors
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [profileId]);
 
     const handleSendInterest = async () => {
         try {
@@ -187,15 +180,18 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                     <p className="text-gray-600 dark:text-gray-400">
                         This profile either does not exist or is hidden from you.
                     </p>
-                    <Link href="/search">
-                        <Button>Back to Search</Button>
+                    <Link href={isReviewer ? "/admin/reports" : "/search"}>
+                        <Button>{isReviewer ? "Back to Reports" : "Back to Search"}</Button>
                     </Link>
                 </Card>
             </div>
         );
     }
 
-    const primaryPhoto = photos.find(p => p.is_primary) || photos[0];
+    // Only photos the API shared a URL for are shown; locked ones are counted
+    const visiblePhotos = photos.filter((p): p is Photo & { storage_key: string } => !!p.storage_key);
+    const lockedCount = photos.length - visiblePhotos.length;
+    const primaryPhoto = visiblePhotos.find(p => p.is_primary) || visiblePhotos[0];
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
@@ -212,29 +208,38 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
             </header>
 
             <main className="flex-1 container mx-auto px-4 pt-24 pb-8 max-w-4xl">
+                {isReviewer && (
+                    <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <span>
+                            🛡️ Moderator view — shown regardless of the member&apos;s visibility, blocks and photo privacy, for review only.
+                        </span>
+                        <Link href="/admin/reports" className="font-semibold underline whitespace-nowrap">
+                            Back to reports
+                        </Link>
+                    </div>
+                )}
                 <Card className="overflow-hidden">
-                    {/* Photo header */}
+                    {/* Photo header: the real photo when the API shares one, else a placeholder */}
                     <div className="aspect-video bg-gradient-to-br from-primary-100 to-primary-300 dark:from-primary-900 dark:to-primary-700 relative overflow-hidden">
                         {primaryPhoto ? (
                             <Image
                                 src={staticUrl(primaryPhoto.storage_key)}
                                 alt={profile.display_name}
                                 fill
-                                className={`object-cover ${profile.photo_blur_until_mutual ? 'blur-2xl scale-110' : ''}`}
+                                sizes="(min-width: 896px) 896px, 100vw"
+                                className="object-cover"
                             />
+                        ) : lockedCount > 0 ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 text-primary-900 dark:text-primary-100">
+                                <span className="text-5xl mb-2" aria-hidden>🔒</span>
+                                <p className="font-bold">Photos visible after mutual interest</p>
+                                <p className="text-sm opacity-80 max-w-xs mt-1">
+                                    {profile.display_name} shares {lockedCount === 1 ? "their photo" : `${lockedCount} photos`} once you both accept an interest.
+                                </p>
+                            </div>
                         ) : (
                             <div className="flex items-center justify-center h-full text-6xl text-primary-400">
                                 👤
-                            </div>
-                        )}
-                        
-                        {profile.photo_blur_until_mutual && primaryPhoto && (
-                            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center text-white text-center p-4">
-                                <span className="text-4xl mb-2">🔒</span>
-                                <p className="font-bold">Photos Hidden for Privacy</p>
-                                <p className="text-sm opacity-90 max-w-xs mt-1">
-                                    This user has requested to keep their photos blurred until there is mutual interest.
-                                </p>
                             </div>
                         )}
 
@@ -253,21 +258,24 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                                     {profile.age} years old · {profile.city_village}, {profile.state}
                                 </p>
                             </div>
-                            <div className="flex gap-2">
-                                <Button onClick={handleSendInterest}>
-                                    💌 Send Interest
-                                </Button>
-                                <Button variant="outline" onClick={() => setShowReport(true)}>
-                                    ⚠️ Report
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={handlePanicBlock}
-                                    className="border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                >
-                                    🚫 Block
-                                </Button>
-                            </div>
+                            {/* Member actions; staff review without interacting (they may have no profile) */}
+                            {!isReviewer && (
+                                <div className="flex gap-2">
+                                    <Button onClick={handleSendInterest}>
+                                        💌 Send Interest
+                                    </Button>
+                                    <Button variant="outline" onClick={() => setShowReport(true)}>
+                                        ⚠️ Report
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={handlePanicBlock}
+                                        className="border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    >
+                                        🚫 Block
+                                    </Button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -333,7 +341,8 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                                         </div>
                                     )}
                                 </div>
-                                {horoscope.chart_images && horoscope.chart_images.length > 0 && !profile.photo_blur_until_mutual && (
+                                {/* The API decides: charts arrive only when the viewer may see them */}
+                                {horoscope.chart_images && horoscope.chart_images.length > 0 && (
                                     <div className="mt-4">
                                         <h3 className="font-medium text-sm text-gray-500 mb-2">Horoscope Chart</h3>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -343,6 +352,7 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                                                         src={staticUrl(img)}
                                                         alt="Horoscope Chart"
                                                         fill
+                                                        sizes="(min-width: 640px) 33vw, 50vw"
                                                         className="object-cover"
                                                     />
                                                 </div>
@@ -350,27 +360,28 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                                         </div>
                                     </div>
                                 )}
+                                {horoscope.charts_locked && (
+                                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                                        🔒 Horoscope chart visible after mutual interest.
+                                    </p>
+                                )}
                             </div>
                         )}
-                        
-                        {/* Photo gallery */}
-                        {photos.length > 1 && (
+
+                        {/* Photo gallery (unlocked photos only) */}
+                        {visiblePhotos.length > 1 && (
                             <div>
                                 <h2 className="font-bold text-lg mb-3">Photos</h2>
                                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                                    {photos.map(p => (
+                                    {visiblePhotos.map(p => (
                                         <div key={p.id} className="aspect-square relative rounded-lg overflow-hidden bg-gray-100">
                                             <Image
                                                 src={staticUrl(p.storage_key)}
                                                 alt=""
                                                 fill
-                                                className={`object-cover ${profile.photo_blur_until_mutual ? 'blur-xl scale-110' : ''}`}
+                                                sizes="(min-width: 640px) 25vw, 33vw"
+                                                className="object-cover"
                                             />
-                                            {profile.photo_blur_until_mutual && (
-                                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-xl">
-                                                    🔒
-                                                </div>
-                                            )}
                                         </div>
                                     ))}
                                 </div>

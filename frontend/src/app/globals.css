@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/*
+ * dark: follows the .dark class on <html> (set by the init script in
+ * app/layout.tsx and ThemeToggle), not prefers-color-scheme — otherwise an OS in
+ * dark mode darkens dark: backgrounds while body text stays light-theme gray.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /*
    * Creative Matrimony — yellow-led brand system.
@@ -57,6 +64,14 @@
     @apply bg-gray-900/80 backdrop-blur-lg border-b border-white/10 shadow-sm;
   }
 
+  /*
+   * Most headers use .glass alone, and variants (dark:glass-dark) do not apply
+   * to plain classes in v4, so .glass switches its own surface under .dark.
+   */
+  .dark .glass {
+    @apply bg-gray-900/80 border-white/10;
+  }
+
   .text-balance {
     text-wrap: balance;
   }
@@ -72,6 +87,8 @@
   .dark {
     --background: 10 10 10;
     --foreground: 255 255 255;
+    /* Native control parts (date picker icon, select popups, scrollbars) go dark too */
+    color-scheme: dark;
   }
 
   body {

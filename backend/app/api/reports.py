@@ -15,6 +15,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, require_roles
 from app.models.report import Report, ReportReason, ReportStatus
 from app.models.user import User, UserRole
+from app.services.profile_service import get_profiles_by_user_ids
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -40,6 +41,33 @@ class ReportOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ReportAdminOut(ReportOut):
+    """Moderation row. Admin links must use profile ids — a user id is not a
+    profile id, so /profile/{user_id} would show a different member."""
+    reporter_profile_id: int | None = None
+    reporter_name: str | None = None
+    target_profile_id: int | None = None
+    target_name: str | None = None
+
+
+async def _admin_out(db: AsyncSession, reports) -> list[ReportAdminOut]:
+    profiles = await get_profiles_by_user_ids(
+        db, {r.reporter_id for r in reports} | {r.target_user_id for r in reports}
+    )
+    out = []
+    for report in reports:
+        reporter = profiles.get(report.reporter_id)
+        target = profiles.get(report.target_user_id)
+        out.append(ReportAdminOut(
+            **ReportOut.model_validate(report).model_dump(),
+            reporter_profile_id=reporter.id if reporter else None,
+            reporter_name=reporter.display_name if reporter else None,
+            target_profile_id=target.id if target else None,
+            target_name=target.display_name if target else None,
+        ))
+    return out
 
 
 @router.post("", response_model=ReportOut, status_code=status.HTTP_201_CREATED)
@@ -86,7 +114,7 @@ admin_router = APIRouter(
 )
 
 
-@admin_router.get("", response_model=list[ReportOut])
+@admin_router.get("", response_model=list[ReportAdminOut])
 async def list_reports(
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: ReportStatus | None = None,
@@ -98,10 +126,10 @@ async def list_reports(
     if status_filter is not None:
         stmt = stmt.where(Report.status == status_filter)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    return await _admin_out(db, result.scalars().all())
 
 
-@admin_router.patch("/{report_id}/resolve", response_model=ReportOut)
+@admin_router.patch("/{report_id}/resolve", response_model=ReportAdminOut)
 async def resolve_report(
     report_id: int,
     user: Annotated[User, Depends(require_roles(UserRole.admin, UserRole.moderator))],
@@ -117,4 +145,4 @@ async def resolve_report(
     report.reviewed_at = datetime.utcnow()
     await db.flush()
     await db.refresh(report)
-    return report
+    return (await _admin_out(db, [report]))[0]

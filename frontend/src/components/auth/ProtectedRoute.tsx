@@ -10,14 +10,16 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            router.replace("/login");
+            // Come back here after login
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
+            router.replace(`/login?redirect=${next}`);
         }
     }, [isLoading, isAuthenticated, router]);
 
     if (isLoading || !isAuthenticated) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-                <div className="animate-pulse text-lg font-serif text-primary-600">Loading...</div>
+                <div className="animate-pulse text-lg font-serif text-primary-600 dark:text-primary-400">Loading...</div>
             </div>
         );
     }

@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { otpThrottle, waitLabel } from "@/lib/otp";
+import { useAuth } from "@/lib/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -14,6 +16,7 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 interface OtpRequestOut {
     message: string;
     expires_in_seconds: number;
+    resend_after_seconds?: number;
     dev_otp?: string | null;
 }
 
@@ -26,12 +29,17 @@ interface OtpVerifyOut {
 function RegisterForm() {
     const router = useRouter();
     const { toast } = useToast();
+    const { refresh } = useAuth();
     const [phone, setPhone] = useState("");
     const [otp, setOtp] = useState("");
     const [stage, setStage] = useState<"phone" | "otp">("phone");
     const [devOtp, setDevOtp] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [countdown, setCountdown] = useState(0);
+    // Server guidance kept on screen (resend window, used-up code)
+    const [notice, setNotice] = useState<string | null>(null);
+    // The current code has had all its attempts; only a new one can verify
+    const [codeUsedUp, setCodeUsedUp] = useState(false);
 
     useEffect(() => {
         if (countdown <= 0) return;
@@ -56,15 +64,37 @@ function RegisterForm() {
             });
             setDevOtp(res.dev_otp ?? null);
             setStage("otp");
-            setCountdown(60);
+            setOtp("");
+            setNotice(null);
+            setCodeUsedUp(false);
+            // Match the server's resend window (per number, for this browser)
+            setCountdown(res.resend_after_seconds ?? 60);
             if (res.dev_otp) {
                 toast(`OTP sent. (Dev OTP: ${res.dev_otp})`, "info");
             } else {
                 toast("OTP sent to your phone.", "success");
             }
         } catch (err) {
-            const msg = err instanceof Error ? err.message : "Failed to send OTP";
-            toast(msg, "error");
+            const throttle = otpThrottle(err);
+            if (throttle?.kind === "resend") {
+                // Resend window: this browser was sent a code moments ago and it may
+                // still be valid, so let the user enter it instead of stranding them
+                setStage("otp");
+                setCountdown(throttle.waitSeconds);
+                setNotice(
+                    stage === "phone"
+                        ? `${throttle.message} Already have the code? Enter it below.`
+                        : throttle.message
+                );
+            } else if (throttle && stage === "otp") {
+                // Hourly cap for the number: keep the code already on screen usable
+                setCountdown(throttle.waitSeconds);
+                setNotice(throttle.message);
+            } else {
+                // Includes the cap on the phone step: this browser may have no code
+                const msg = err instanceof Error ? err.message : "Failed to send OTP";
+                toast(msg, "error");
+            }
         } finally {
             setLoading(false);
         }
@@ -83,7 +113,9 @@ function RegisterForm() {
                 body: { phone, otp },
                 anonymous: true,
             });
-            // Tokens arrive as httpOnly cookies set by the backend.
+            // Tokens arrive as httpOnly cookies set by the backend. Load the user into
+            // auth context first, or AuthGuard on the next page bounces to /login.
+            await refresh();
             if (res.is_new_user) {
                 toast("Welcome! Let's set up your profile.", "success");
                 router.replace("/profile/create");
@@ -92,8 +124,18 @@ function RegisterForm() {
                 router.replace("/dashboard");
             }
         } catch (err) {
-            const msg = err instanceof Error ? err.message : "Invalid OTP";
-            toast(msg, "error");
+            const throttle = otpThrottle(err);
+            if (throttle) {
+                // This code is used up: clear it and steer to requesting a new one
+                setOtp("");
+                setDevOtp(null);
+                setCodeUsedUp(true);
+                setCountdown(throttle.waitSeconds);
+                setNotice(throttle.message);
+            } else {
+                const msg = err instanceof Error ? err.message : "Invalid OTP";
+                toast(msg, "error");
+            }
         } finally {
             setLoading(false);
         }
@@ -161,6 +203,11 @@ function RegisterForm() {
                         </form>
                     ) : (
                         <form onSubmit={verifyOtp} className="space-y-4">
+                            {notice && (
+                                <p role="alert" className="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 rounded-md">
+                                    {notice}
+                                </p>
+                            )}
                             <div>
                                 <label htmlFor="otp" className="text-sm font-medium block mb-1">
                                     One-Time Password
@@ -173,6 +220,7 @@ function RegisterForm() {
                                     placeholder="000000"
                                     value={otp}
                                     onChange={e => setOtp(e.target.value.replace(/[^\d]/g, ""))}
+                                    disabled={codeUsedUp}
                                     autoFocus
                                     required
                                 />
@@ -182,25 +230,41 @@ function RegisterForm() {
                                     </p>
                                 )}
                             </div>
-                            <Button type="submit" className="w-full" isLoading={loading}>
-                                Verify & Create Account
-                            </Button>
-                            <div className="flex justify-between text-sm">
-                                <button
+                            {codeUsedUp ? (
+                                <Button
                                     type="button"
-                                    className="text-gray-600 hover:text-primary-600 disabled:opacity-50"
+                                    className="w-full"
+                                    isLoading={loading}
                                     disabled={countdown > 0 || loading}
                                     onClick={() => requestOtp()}
                                 >
-                                    {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
-                                </button>
+                                    {countdown > 0 ? `Request a new OTP in ${waitLabel(countdown)}` : "Request a new OTP"}
+                                </Button>
+                            ) : (
+                                <Button type="submit" className="w-full" isLoading={loading}>
+                                    Verify & Create Account
+                                </Button>
+                            )}
+                            <div className="flex justify-between text-sm">
+                                {!codeUsedUp && (
+                                    <button
+                                        type="button"
+                                        className="text-gray-600 dark:text-gray-400 hover:text-primary-600 disabled:opacity-50"
+                                        disabled={countdown > 0 || loading}
+                                        onClick={() => requestOtp()}
+                                    >
+                                        {countdown > 0 ? `Resend in ${waitLabel(countdown)}` : "Resend OTP"}
+                                    </button>
+                                )}
                                 <button
                                     type="button"
-                                    className="text-gray-600 hover:text-primary-600"
+                                    className="ml-auto text-gray-600 dark:text-gray-400 hover:text-primary-600"
                                     onClick={() => {
                                         setStage("phone");
                                         setOtp("");
                                         setDevOtp(null);
+                                        setNotice(null);
+                                        setCodeUsedUp(false);
                                     }}
                                 >
                                     Change number
@@ -209,7 +273,7 @@ function RegisterForm() {
                         </form>
                     )}
 
-                    <p className="text-xs text-gray-500 text-center pt-2 border-t">
+                    <p className="text-xs text-gray-500 text-center pt-2 border-t border-gray-200 dark:border-gray-700">
                         By continuing, you agree to our{" "}
                         <Link href="/legal/terms" className="text-primary-600 hover:underline">Terms</Link> and{" "}
                         <Link href="/legal/privacy" className="text-primary-600 hover:underline">Privacy Policy</Link>.

@@ -10,8 +10,8 @@ export function LanguageToggle() {
             <button
                 onClick={() => setLocale("en")}
                 className={`px-3 py-1 rounded-md text-sm transition-all ${locale === "en"
-                        ? "bg-white dark:bg-gray-700 shadow text-primary-600 font-medium"
-                        : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                        ? "bg-white dark:bg-gray-700 shadow text-primary-600 dark:text-primary-200 font-medium"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                     }`}
             >
                 EN
@@ -19,8 +19,8 @@ export function LanguageToggle() {
             <button
                 onClick={() => setLocale("te")}
                 className={`px-3 py-1 rounded-md text-sm transition-all ${locale === "te"
-                        ? "bg-white dark:bg-gray-700 shadow text-primary-600 font-medium"
-                        : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                        ? "bg-white dark:bg-gray-700 shadow text-primary-600 dark:text-primary-200 font-medium"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                     }`}
             >
                 తె

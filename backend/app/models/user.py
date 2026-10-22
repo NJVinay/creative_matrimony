@@ -55,9 +55,22 @@ class OTPLog(Base):
     phone = Column(String(20), nullable=False, index=True)
     otp_hash = Column(String(255), nullable=False)
     attempts = Column(Integer, default=0)
-    cooldown_until = Column(DateTime, nullable=True)
+    cooldown_until = Column(DateTime, nullable=True)  # legacy, no longer written or read
+    # sha256 of the otp_device cookie of the browser that requested the code:
+    # only that browser can check it. A verified row marks a device as known
+    # to the phone (exempt from OTP_MAX_SENDS_PER_HOUR).
+    device_hash = Column(String(64), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     verified_at = Column(DateTime, nullable=True)
+
+
+class OTPPhoneLock(Base):
+    """One row per phone, row-locked for the length of an OTP request so the
+    per-phone throttles are checked and the new code written atomically."""
+    __tablename__ = "otp_phone_locks"
+
+    phone = Column(String(20), primary_key=True)
+    locked_at = Column(DateTime, nullable=True)
 
 class RevokedToken(Base):
     __tablename__ = "revoked_tokens"

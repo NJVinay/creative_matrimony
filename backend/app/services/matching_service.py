@@ -13,6 +13,9 @@ from app.models.match import Preference
 from app.models.communication import Interest
 from app.models.horoscope import Horoscope, Rasi, Star
 from app.models.safety import UserBlock
+from app.services.profile_service import (
+    legal_age_condition, meets_minimum_age, visibility_condition,
+)
 
 # Classical ordering used for porutham-style counting
 STAR_ORDER = list(Star)   # 27 nakshatras, Ashwini → Revati
@@ -164,11 +167,18 @@ class MatchingService:
         # 1. Get User Preference, Profile, and Horoscope (for Epic F2 contribution)
         result = await db.execute(
             select(Profile)
-            .options(selectinload(Profile.preference), selectinload(Profile.horoscope))
+            .options(
+                selectinload(Profile.preference),
+                selectinload(Profile.horoscope),
+                selectinload(Profile.user),  # seeker's verification, for visibility
+            )
             .where(Profile.id == user_profile_id)
         )
         profile = result.scalar_one_or_none()
         if not profile:
+            return []
+        # Legacy under-age profiles (created before the DOB check) get no matches
+        if not meets_minimum_age(profile.date_of_birth, profile.gender):
             return []
 
         pref = await MatchingService.get_or_create_preference(db, user_profile_id)
@@ -200,8 +210,13 @@ class MatchingService:
             selectinload(Profile.user),  # needed for is_verified in the public view
         ).where(
             Profile.id.notin_(excluded_ids),
-            Profile.visibility != "hidden",
-            Profile.is_active == True
+            # Same rule as the profile page: no hidden profiles, and
+            # verified-only ones only for verified seekers
+            visibility_condition(profile.user),
+            Profile.is_active == True,
+            # Hard filter, independent of preferences: age preferences only
+            # add score points, so they can never be what keeps minors out.
+            legal_age_condition(),
         )
         if blocked_user_ids:
             query = query.where(Profile.user_id.notin_(blocked_user_ids))

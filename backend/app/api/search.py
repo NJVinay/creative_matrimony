@@ -16,7 +16,7 @@ from app.models.user import User
 from app.schemas.search import SearchRequest, SearchResponse
 from app.schemas.profile import ProfilePublicOut
 from app.services.search_service import search_profiles, count_profiles, SearchFilters
-from app.services.profile_service import to_public_view, check_visibility, get_profile_by_user_id
+from app.services.profile_service import to_public_view, photo_fields_for_viewer
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
@@ -30,7 +30,8 @@ async def search_matches(
     """
     Search profiles.
     Requires auth.
-    Enforces privacy rules (Verified-only, etc.) on returned results.
+    Privacy rules (hidden, verified-only, legal age, blocks) are applied in the
+    query itself, so `total` counts exactly the profiles the pages can show.
     Loads profiles + owners in a single batched query (no N+1).
     """
     filters = SearchFilters(
@@ -48,11 +49,9 @@ async def search_matches(
         offset=(body.page - 1) * body.limit,
     )
 
-    profiles = await search_profiles(db, filters, current_user_id=user.id)
+    visible_profiles = await search_profiles(db, filters, viewer=user)
 
-    # Filter by visibility, then fetch owners in a single query (no N+1)
-    visible_profiles = [p for p in profiles if check_visibility(p, user)]
-
+    # Fetch owners in a single query (no N+1)
     owners_by_id: dict[int, User] = {}
     if visible_profiles:
         owner_ids = {p.user_id for p in visible_profiles}
@@ -61,12 +60,16 @@ async def search_matches(
         for u in owners_result.scalars().all():
             owners_by_id[u.id] = u
 
+    # Display photos with the same batched access check as recommendations,
+    # so a card's photo/lock state matches what /profile/{id} would show
+    photos = await photo_fields_for_viewer(db, user, visible_profiles)
+
     visible_results = [
-        ProfilePublicOut(**to_public_view(p, owners_by_id.get(p.user_id)))
+        ProfilePublicOut(**to_public_view(p, owners_by_id.get(p.user_id)), **photos[p.id])
         for p in visible_profiles
     ]
 
-    total = await count_profiles(db, filters, current_user_id=user.id)
+    total = await count_profiles(db, filters, viewer=user)
 
     return SearchResponse(
         results=visible_results,

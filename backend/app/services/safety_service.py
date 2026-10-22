@@ -28,14 +28,13 @@ async def are_blocked(db: AsyncSession, user_a: int, user_b: int) -> bool:
 
 
 async def get_blocked_user_ids(db: AsyncSession, user_id: int) -> set[int]:
-    """All user ids blocked by, or blocking, the given user."""
-    blocked = (await db.execute(
-        select(UserBlock.blocked_user_id).where(UserBlock.blocker_user_id == user_id)
-    )).scalars().all()
-    blockers = (await db.execute(
-        select(UserBlock.blocker_user_id).where(UserBlock.blocked_user_id == user_id)
-    )).scalars().all()
-    return set(blocked) | set(blockers)
+    """All user ids blocked by, or blocking, the given user (one query)."""
+    rows = await db.execute(
+        select(UserBlock.blocker_user_id, UserBlock.blocked_user_id).where(
+            or_(UserBlock.blocker_user_id == user_id, UserBlock.blocked_user_id == user_id)
+        )
+    )
+    return {blocked if blocker == user_id else blocker for blocker, blocked in rows.all()}
 
 
 async def block_user(db: AsyncSession, blocker_user_id: int, blocked_user_id: int,

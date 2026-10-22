@@ -12,7 +12,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.services.matching_service import MatchingService
-from app.services.profile_service import to_public_view
+from app.services.profile_service import to_public_view, photo_fields_for_viewer
 from app.schemas.match import PreferenceOut, PreferenceUpdate, MatchRecommendation
 from app.schemas.profile import ProfilePublicOut
 
@@ -34,10 +34,14 @@ async def get_recommendations(
     # Get matches from service
     matches = await MatchingService.get_recommendations(db, user.profile.id, limit)
 
+    # Display photos, batched for the whole set, only for candidates whose
+    # photos this viewer may see (server-side photo blur)
+    photos = await photo_fields_for_viewer(db, user, (p for p, *_ in matches))
+
     # Convert to schema (privacy-safe public view — no DOB/phone/location detail)
     return [
         MatchRecommendation(
-            profile=ProfilePublicOut(**to_public_view(p, p.user)),
+            profile=ProfilePublicOut(**to_public_view(p, p.user), **photos[p.id]),
             score=s,
             reasons=r,
             confidence=c

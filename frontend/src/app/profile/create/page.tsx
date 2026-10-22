@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { dobError, maxDobFor } from "@/lib/age";
+import { useProfile } from "@/lib/useProfile";
 import { useToast } from "@/components/ui/Toast";
 import { AuthGuard } from "@/components/ui/AuthGuard";
 import { Button } from "@/components/ui/Button";
@@ -37,6 +39,7 @@ const TOTAL_STEPS = 4;
 function ProfileCreateInner() {
     const router = useRouter();
     const { toast } = useToast();
+    const { refreshProfile } = useProfile();
     const [step, setStep] = useState(1);
     const [submitting, setSubmitting] = useState(false);
     const [form, setForm] = useState<ProfileFormState>({
@@ -62,10 +65,12 @@ function ProfileCreateInner() {
         setForm(prev => ({ ...prev, [key]: value }));
     };
 
+    const dobErr = dobError(form.date_of_birth, form.gender);
+
     const canAdvance = (): boolean => {
         if (step === 1) return true; // Mode step is always valid
         if (step === 2) {
-            return form.display_name.trim().length >= 2 && form.date_of_birth !== "";
+            return form.display_name.trim().length >= 2 && form.date_of_birth !== "" && !dobErr;
         }
         if (step === 3) {
             return form.city_village.trim().length > 0 && form.state.trim().length > 0;
@@ -75,7 +80,7 @@ function ProfileCreateInner() {
 
     const handleNext = () => {
         if (!canAdvance()) {
-            toast("Please complete the required fields before continuing.", "error");
+            toast(step === 2 && dobErr ? dobErr : "Please complete the required fields before continuing.", "error");
             return;
         }
         setStep(s => Math.min(s + 1, TOTAL_STEPS));
@@ -109,6 +114,8 @@ function ProfileCreateInner() {
                     partner_preferences: form.partner_preferences || null,
                 },
             });
+            // Load the new profile into context so the dashboard unlocks without a reload
+            await refreshProfile();
             toast("Profile created! Welcome aboard.", "success");
             router.replace("/dashboard");
         } catch (err) {
@@ -137,7 +144,7 @@ function ProfileCreateInner() {
                 <Card className="w-full max-w-2xl p-8 space-y-6">
                     {/* Progress */}
                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-gray-500">
+                        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
                             <span>Step {step} of {TOTAL_STEPS}</span>
                             <span>{Math.round((step / TOTAL_STEPS) * 100)}%</span>
                         </div>
@@ -152,12 +159,12 @@ function ProfileCreateInner() {
                     {/* Step 1: Mode */}
                     {step === 1 && (
                         <div className="space-y-4">
-                            <h2 className="text-2xl font-serif font-bold">Who&apos;s creating this profile?</h2>
+                            <h2 className="text-2xl font-serif font-bold text-gray-900 dark:text-gray-100">Who&apos;s creating this profile?</h2>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                                 Parents or guardians can create profiles for their children.
                             </p>
                             <div className="space-y-3">
-                                <label className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <label className="flex items-start gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                                     <input
                                         type="radio"
                                         name="mode"
@@ -167,10 +174,10 @@ function ProfileCreateInner() {
                                     />
                                     <div>
                                         <div className="font-semibold">Myself</div>
-                                        <div className="text-sm text-gray-500">I&apos;m creating my own profile</div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">I&apos;m creating my own profile</div>
                                     </div>
                                 </label>
-                                <label className="flex items-start gap-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <label className="flex items-start gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
                                     <input
                                         type="radio"
                                         name="mode"
@@ -180,13 +187,13 @@ function ProfileCreateInner() {
                                     />
                                     <div>
                                         <div className="font-semibold">On behalf of someone</div>
-                                        <div className="text-sm text-gray-500">Parent/guardian creating for son or daughter</div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">Parent/guardian creating for son or daughter</div>
                                     </div>
                                 </label>
                             </div>
                             {form.profile_mode === "parent" && (
                                 <div>
-                                    <label className="text-sm font-medium block mb-1">Your relationship</label>
+                                    <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Your relationship</label>
                                     <Input
                                         placeholder="e.g. Father, Mother, Uncle"
                                         value={form.guardian_relationship}
@@ -200,9 +207,9 @@ function ProfileCreateInner() {
                     {/* Step 2: Basics */}
                     {step === 2 && (
                         <div className="space-y-4">
-                            <h2 className="text-2xl font-serif font-bold">Basic Details</h2>
+                            <h2 className="text-2xl font-serif font-bold text-gray-900 dark:text-gray-100">Basic Details</h2>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Display Name *</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Display Name *</label>
                                 <Input
                                     value={form.display_name}
                                     onChange={e => update("display_name", e.target.value)}
@@ -211,7 +218,7 @@ function ProfileCreateInner() {
                                 />
                             </div>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Gender *</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Gender *</label>
                                 <div className="flex gap-3">
                                     {(["male", "female", "other"] as const).map(g => (
                                         <label key={g} className="flex items-center gap-2 cursor-pointer">
@@ -227,12 +234,13 @@ function ProfileCreateInner() {
                                 </div>
                             </div>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Date of Birth *</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Date of Birth *</label>
                                 <Input
                                     type="date"
                                     value={form.date_of_birth}
                                     onChange={e => update("date_of_birth", e.target.value)}
-                                    max={new Date().toISOString().split("T")[0]}
+                                    max={maxDobFor(form.gender)}
+                                    error={dobErr ?? undefined}
                                 />
                             </div>
                         </div>
@@ -241,10 +249,10 @@ function ProfileCreateInner() {
                     {/* Step 3: Location + Religion/Community */}
                     {step === 3 && (
                         <div className="space-y-4">
-                            <h2 className="text-2xl font-serif font-bold">Location & Community</h2>
+                            <h2 className="text-2xl font-serif font-bold text-gray-900 dark:text-gray-100">Location & Community</h2>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-sm font-medium block mb-1">City / Village *</label>
+                                    <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">City / Village *</label>
                                     <Input
                                         value={form.city_village}
                                         onChange={e => update("city_village", e.target.value)}
@@ -252,7 +260,7 @@ function ProfileCreateInner() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium block mb-1">State *</label>
+                                    <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">State *</label>
                                     <Input
                                         value={form.state}
                                         onChange={e => update("state", e.target.value)}
@@ -281,24 +289,24 @@ function ProfileCreateInner() {
                     {/* Step 4: Optional details */}
                     {step === 4 && (
                         <div className="space-y-4">
-                            <h2 className="text-2xl font-serif font-bold">A bit more (optional)</h2>
+                            <h2 className="text-2xl font-serif font-bold text-gray-900 dark:text-gray-100">A bit more (optional)</h2>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                                 You can fill these later from your profile page. They help us find better matches.
                             </p>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Short bio</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Short bio</label>
                                 <textarea
                                     value={form.bio}
                                     onChange={e => update("bio", e.target.value)}
                                     rows={3}
                                     maxLength={2000}
-                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
                                     placeholder="A few lines about yourself or your family"
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-sm font-medium block mb-1">Education</label>
+                                    <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Education</label>
                                     <Input
                                         value={form.education_level}
                                         onChange={e => update("education_level", e.target.value)}
@@ -306,7 +314,7 @@ function ProfileCreateInner() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium block mb-1">Occupation</label>
+                                    <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Occupation</label>
                                     <Input
                                         value={form.occupation_category}
                                         onChange={e => update("occupation_category", e.target.value)}
@@ -315,11 +323,11 @@ function ProfileCreateInner() {
                                 </div>
                             </div>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Marital Status</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Marital Status</label>
                                 <select
                                     value={form.marital_status}
                                     onChange={e => update("marital_status", e.target.value)}
-                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
                                 >
                                     <option value="never_married">Never married</option>
                                     <option value="divorced">Divorced</option>
@@ -328,22 +336,22 @@ function ProfileCreateInner() {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Family details</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Family details</label>
                                 <textarea
                                     value={form.family_details}
                                     onChange={e => update("family_details", e.target.value)}
                                     rows={2}
-                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
                                     placeholder="Family background, values, etc."
                                 />
                             </div>
                             <div>
-                                <label className="text-sm font-medium block mb-1">Partner preferences</label>
+                                <label className="text-sm font-medium block mb-1 text-gray-700 dark:text-gray-300">Partner preferences</label>
                                 <textarea
                                     value={form.partner_preferences}
                                     onChange={e => update("partner_preferences", e.target.value)}
                                     rows={2}
-                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
                                     placeholder="What you're looking for in a partner"
                                 />
                             </div>
@@ -351,7 +359,7 @@ function ProfileCreateInner() {
                     )}
 
                     {/* Navigation buttons */}
-                    <div className="flex justify-between pt-4 border-t">
+                    <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                         <Button
                             variant="outline"
                             onClick={handleBack}

@@ -45,6 +45,14 @@ function ChatRoomInner({ roomId }: { roomId: number }) {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
+    // Text sent but not yet accepted by the server. The input is only cleared once
+    // the server echoes it back, so a blocked message can be edited, not retyped.
+    const pendingRef = useRef<string | null>(null);
+    const userIdRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        userIdRef.current = user?.id ?? null;
+    }, [user?.id]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -72,6 +80,9 @@ function ChatRoomInner({ roomId }: { roomId: number }) {
                 // 2. Fetch Chat History
                 const history = await apiFetch<ChatMessage[]>(`/chat/rooms/${roomId}/messages`);
                 if (isMounted) setMessages(history);
+                // Unmounted while loading (e.g. StrictMode's double effect run):
+                // don't open a socket nobody will close.
+                if (!isMounted) return;
 
                 // 3. Setup WebSocket
                 // API_BASE is e.g. "http://localhost:8000" or empty if proxying
@@ -91,9 +102,21 @@ function ChatRoomInner({ roomId }: { roomId: number }) {
                     try {
                         const data = JSON.parse(event.data);
                         if (data.error) {
+                            // Blocked (e.g. contact sharing): keep the text in the input
+                            pendingRef.current = null;
                             toast(data.error, "error");
                         } else if (data.id) {
                             // It's a new message
+                            if (
+                                isMounted &&
+                                pendingRef.current !== null &&
+                                data.sender_id === userIdRef.current &&
+                                data.content === pendingRef.current
+                            ) {
+                                pendingRef.current = null;
+                                // Leave anything typed since sending untouched
+                                setInputValue(prev => (prev.trim() === data.content ? "" : prev));
+                            }
                             if (isMounted) {
                                 setMessages(prev => {
                                     // Prevent duplicates
@@ -134,9 +157,9 @@ function ChatRoomInner({ roomId }: { roomId: number }) {
         const content = inputValue.trim();
         if (!content || !wsRef.current) return;
 
-        // Send via WebSocket
+        // Send via WebSocket; the input clears when the server accepts it (onmessage)
+        pendingRef.current = content;
         wsRef.current.send(content);
-        setInputValue("");
     };
 
     if (loading) {

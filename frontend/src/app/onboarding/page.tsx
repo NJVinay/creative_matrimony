@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { dobError, maxDobFor } from "@/lib/age";
+import { useProfile } from "@/lib/useProfile";
 
 interface OnboardingData {
     profile_mode: string;
@@ -24,6 +26,7 @@ interface OnboardingData {
 export default function OnboardingPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { refreshProfile } = useProfile();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
 
@@ -45,6 +48,8 @@ export default function OnboardingPage() {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const dobErr = dobError(formData.date_of_birth, formData.gender);
+
     const nextStep = () => setStep(prev => prev + 1);
     const prevStep = () => setStep(prev => prev - 1);
 
@@ -61,8 +66,10 @@ export default function OnboardingPage() {
                 method: "POST",
                 body: payload,
             });
+            // Load the new profile into context so the dashboard unlocks without a reload
+            await refreshProfile();
             toast("Profile created successfully!", "success");
-            router.push("/dashboard"); // Future dashboard page
+            router.push("/dashboard");
         } catch (err: unknown) {
             toast(err instanceof Error ? err.message : "Failed to create profile.", "error");
         } finally {
@@ -129,13 +136,13 @@ export default function OnboardingPage() {
 
                                 {formData.profile_mode === "parent" && (
                                     <div className="space-y-4 mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg animate-in fade-in duration-300">
-                                        <label className="block text-sm font-medium">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                             What is your relationship to the person?
                                         </label>
                                         <select
                                             value={formData.guardian_relationship || ""}
                                             onChange={(e) => updateField("guardian_relationship", e.target.value)}
-                                            className="w-full h-11 px-3 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900"
+                                            className="w-full h-11 px-3 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                                         >
                                             <option value="" disabled>Select Relationship</option>
                                             <option value="Father">Father</option>
@@ -164,7 +171,7 @@ export default function OnboardingPage() {
 
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Full Name</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Full Name</label>
                                         <Input
                                             value={formData.display_name}
                                             onChange={(e) => updateField("display_name", e.target.value)}
@@ -174,14 +181,14 @@ export default function OnboardingPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Gender</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Gender</label>
                                         <div className="flex gap-4">
                                             {["male", "female"].map((g) => (
                                                 <button
                                                     key={g}
                                                     onClick={() => updateField("gender", g)}
                                                     className={`flex-1 p-3 rounded-md border-2 transition-all ${formData.gender === g
-                                                            ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700"
+                                                            ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300"
                                                             : "border-gray-200 dark:border-gray-800"
                                                         }`}
                                                 >
@@ -192,11 +199,13 @@ export default function OnboardingPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Date of Birth</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Date of Birth</label>
                                         <Input
                                             type="date"
                                             value={formData.date_of_birth}
                                             onChange={(e) => updateField("date_of_birth", e.target.value)}
+                                            max={maxDobFor(formData.gender || "female")}
+                                            error={dobErr ?? undefined}
                                             required
                                         />
                                     </div>
@@ -207,7 +216,7 @@ export default function OnboardingPage() {
                                     <Button
                                         className="flex-1"
                                         onClick={nextStep}
-                                        disabled={!formData.display_name || !formData.gender || !formData.date_of_birth}
+                                        disabled={!formData.display_name || !formData.gender || !formData.date_of_birth || !!dobErr}
                                     >
                                         Continue
                                     </Button>
@@ -223,7 +232,7 @@ export default function OnboardingPage() {
 
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">City / Village</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">City / Village</label>
                                         <Input
                                             value={formData.city_village}
                                             onChange={(e) => updateField("city_village", e.target.value)}
@@ -233,11 +242,11 @@ export default function OnboardingPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">State</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">State</label>
                                         <select
                                             value={formData.state}
                                             onChange={(e) => updateField("state", e.target.value)}
-                                            className="w-full h-11 px-3 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900"
+                                            className="w-full h-11 px-3 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                                             required
                                         >
                                             <option value="" disabled>Select State</option>
@@ -261,7 +270,7 @@ export default function OnboardingPage() {
                                             />
                                             <div>
                                                 <div className="font-bold text-sm">Extra safety: show my profile only to verified members</div>
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                     Photos are blurred until mutual interest by default. You can change both anytime in Settings.
                                                 </div>
                                             </div>

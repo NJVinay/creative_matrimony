@@ -79,7 +79,7 @@ export function NotificationBell() {
 
             {isOpen && (
                 <Card className="absolute right-0 mt-2 w-80 z-50 p-0 overflow-hidden shadow-xl border-gray-200 dark:border-gray-700">
-                    <div className="p-3 border-b bg-gray-50 dark:bg-gray-800 flex justify-between items-center">
+                    <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-between items-center">
                         <h3 className="font-bold text-sm">Notifications</h3>
                         <button
                             className="text-xs text-primary-600 hover:underline"
@@ -114,7 +114,7 @@ export function NotificationBell() {
                             ))
                         )}
                     </div>
-                    <div className="p-2 border-t text-center bg-gray-50 dark:bg-gray-800">
+                    <div className="p-2 border-t border-gray-200 dark:border-gray-700 text-center bg-gray-50 dark:bg-gray-800">
                         <Link href="/dashboard" className="text-xs text-gray-500 hover:text-primary-600">
                             View All
                         </Link>

@@ -11,6 +11,9 @@ import Link from "next/link";
 interface Inquiry {
     id: number;
     user_id: number;
+    // Profile pages are keyed by PROFILE id, which differs from the user id
+    profile_id: number | null;
+    display_name: string | null;
     category: string;
     message: string;
     is_resolved: boolean;
@@ -70,7 +73,7 @@ function AdminServicesInner() {
                             <thead className="bg-gray-50 dark:bg-gray-900 border-b">
                                 <tr>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">ID</th>
-                                    <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">User ID</th>
+                                    <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Member</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Category</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100 w-1/3">Message</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Date</th>
@@ -96,9 +99,14 @@ function AdminServicesInner() {
                                         <tr key={inq.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
                                             <td className="px-6 py-4 font-mono">{inq.id}</td>
                                             <td className="px-6 py-4 font-medium">
-                                                <Link href={`/profile/${inq.user_id}`} className="text-primary-600 hover:underline">
-                                                    User {inq.user_id}
-                                                </Link>
+                                                {inq.profile_id !== null ? (
+                                                    <Link href={`/profile/${inq.profile_id}`} className="text-primary-600 hover:underline">
+                                                        {inq.display_name || `Profile #${inq.profile_id}`}
+                                                        <span className="block text-xs font-normal text-gray-400">user #{inq.user_id}</span>
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-gray-500">User #{inq.user_id} (no profile)</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 capitalize">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${inq.category === 'astrology' ? 'bg-purple-100 text-purple-700' :

@@ -8,7 +8,8 @@ import asyncio
 import pathlib
 
 # ── Must run before any `app.*` import ─────────────────────
-TEST_DB_PATH = pathlib.Path(__file__).parent / "test.db"
+# TEST_DB_PATH lets concurrent runs (e.g. parallel agents) use separate files
+TEST_DB_PATH = pathlib.Path(os.environ.get("TEST_DB_PATH") or pathlib.Path(__file__).parent / "test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["DEBUG"] = "false"
@@ -16,7 +17,8 @@ os.environ["RESEND_API_KEY"] = ""  # emails are no-ops in tests
 # Generous limits so the suite never trips throttles
 os.environ["OTP_RATE_LIMIT_PER_IP"] = "1000/hour"
 os.environ["GLOBAL_RATE_LIMIT"] = "10000/minute"
-os.environ["OTP_COOLDOWN_SECONDS"] = "1"
+os.environ["OTP_RESEND_SECONDS"] = "1"
+os.environ["OTP_MAX_SENDS_PER_HOUR"] = "1000"
 
 import pytest
 import pytest_asyncio
@@ -63,14 +65,18 @@ async def db():
 
 async def login(client: AsyncClient, phone: str) -> dict:
     """Register/login a user through the real OTP flow.
-    The raw OTP comes from calling the service directly (mock provider)."""
-    from app.services.otp_service import create_otp
+    The raw OTP comes from calling the service directly (mock provider), bound
+    to a fresh device id that is sent the way a browser sends the otp_device
+    cookie /otp/request sets (which is what binds the code)."""
+    from app.services.otp_service import OTP_DEVICE_COOKIE, create_otp, device_hash, new_device_id
 
+    device_id = new_device_id()
     async with async_session() as session:
-        otp = await create_otp(session, phone)
+        otp = await create_otp(session, phone, device_hash(device_id))
         await session.commit()
 
-    resp = await client.post("/api/auth/otp/verify", json={"phone": phone, "otp": otp})
+    resp = await client.post("/api/auth/otp/verify", json={"phone": phone, "otp": otp},
+                             headers={"Cookie": f"{OTP_DEVICE_COOKIE}={device_id}"})
     assert resp.status_code == 200, resp.text
     return resp.json()
 

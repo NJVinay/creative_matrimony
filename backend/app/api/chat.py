@@ -12,8 +12,11 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, decode_token
 from app.models.user import User
 from app.models.communication import InterestStatus, ChatParticipant
-from app.services.chat_service import ChatService
-from app.services.profile_service import to_public_view
+from app.services.chat_service import ChatService, InterestAlreadyAnswered
+from app.services.profile_service import (
+    to_public_view, is_reviewer, is_underage_viewer, meets_minimum_age,
+)
+from app.services.safety_service import get_blocked_user_ids
 from app.schemas.chat import (
     InterestOut, ChatRoomOut, ChatMessageOut, MessageCreate,
     ChatParticipantOut, ChatParticipantUserOut,
@@ -29,8 +32,24 @@ router = APIRouter(tags=["Communication"])
 # are constructed explicitly via to_public_view rather than from_attributes
 # (validating raw Profile ORM objects would 500 — Profile has no is_verified).
 
-async def _interests_out(db: AsyncSession, interests) -> List[InterestOut]:
-    owner_ids = {p.user_id for i in interests for p in (i.sender, i.receiver) if p}
+async def _interests_out(db: AsyncSession, interests, viewer: User) -> List[InterestOut]:
+    """Interests of the viewer's own profile. As on GET /profiles/{id}, a
+    counterpart below the legal marriage age or blocked in either direction is
+    left out, and a viewer below it sees none (admins/moderators excepted).
+    Hidden or verified-only counterparts stay: they chose to send or receive
+    this interest."""
+    interests = [i for i in interests if i.sender and i.receiver]
+    if await is_underage_viewer(db, viewer):
+        return []
+    if not is_reviewer(viewer):
+        blocked = await get_blocked_user_ids(db, viewer.id)
+
+        def shown(i) -> bool:
+            other = i.receiver if i.sender.user_id == viewer.id else i.sender
+            return other.user_id not in blocked and meets_minimum_age(other.date_of_birth, other.gender)
+
+        interests = [i for i in interests if shown(i)]
+    owner_ids = {p.user_id for i in interests for p in (i.sender, i.receiver)}
     owners: dict[int, User] = {}
     if owner_ids:
         result = await db.execute(select(User).where(User.id.in_(owner_ids)))
@@ -44,7 +63,6 @@ async def _interests_out(db: AsyncSession, interests) -> List[InterestOut]:
             created_at=i.created_at,
         )
         for i in interests
-        if i.sender and i.receiver
     ]
 
 
@@ -116,6 +134,8 @@ async def send_interest(
 
     try:
         interest = await ChatService.send_interest(db, user.profile.id, profile_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"status": "sent", "id": interest.id}
@@ -128,7 +148,7 @@ async def get_received_interests(
     if not user.profile:
         raise HTTPException(status_code=400, detail="Profile required")
     interests = await ChatService.get_interests(db, user.profile.id, type="received")
-    return await _interests_out(db, interests)
+    return await _interests_out(db, interests, user)
 
 @router.get("/interests/sent", response_model=List[InterestOut])
 async def get_sent_interests(
@@ -138,7 +158,7 @@ async def get_sent_interests(
     if not user.profile:
         raise HTTPException(status_code=400, detail="Profile required")
     interests = await ChatService.get_interests(db, user.profile.id, type="sent")
-    return await _interests_out(db, interests)
+    return await _interests_out(db, interests, user)
 
 @router.put("/interests/{id}/{action}")
 async def respond_to_interest(
@@ -161,7 +181,10 @@ async def respond_to_interest(
     # `where(Interest.receiver_id == user_id)` -> variable name user_id implies ID, but Context is Profile ID.
     # Yes, Interest.receiver_id is a profile ID. So I should pass profile ID.
     
-    updated = await ChatService.update_interest_status(db, id, status, user.profile.id)
+    try:
+        updated = await ChatService.update_interest_status(db, id, status, user.profile.id)
+    except InterestAlreadyAnswered as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if not updated:
         raise HTTPException(status_code=404, detail="Interest not found")
         
@@ -175,7 +198,16 @@ async def list_chats(
     db: Annotated[AsyncSession, Depends(get_db)]
 ):
     rooms = await ChatService.get_user_chats(db, user.id)
-    return [_room_out(room) for room in rooms]
+    # Rooms with anyone below the legal marriage age are closed (no history,
+    # no messages), so they are not listed either
+    return [
+        _room_out(room) for room in rooms
+        if all(
+            meets_minimum_age(part.user.profile.date_of_birth, part.user.profile.gender)
+            for part in room.participants
+            if part.user and part.user.profile
+        )
+    ]
 
 @router.get("/chat/rooms/{room_id}/messages", response_model=List[ChatMessageOut])
 async def get_chat_history(

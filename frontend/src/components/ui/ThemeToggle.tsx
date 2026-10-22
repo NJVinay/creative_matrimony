@@ -1,26 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { PREF_KEYS, savePreference, useHtmlState } from "@/lib/htmlPreference";
 
 export function ThemeToggle() {
-    const [isDark, setIsDark] = useState(() => {
-        if (typeof window === "undefined") return false;
-        const stored = localStorage.getItem("theme");
-        if (stored) return stored === "dark";
-        return document.documentElement.classList.contains("dark");
-    });
+    // The `dark` class on <html> is the source of truth (applied before paint by the layout script)
+    const isDark = useHtmlState(html => html.classList.contains("dark"), false);
 
     const toggle = () => {
-        const html = document.documentElement;
-        if (html.classList.contains("dark")) {
-            html.classList.remove("dark");
-            localStorage.setItem("theme", "light");
-            setIsDark(false);
-        } else {
-            html.classList.add("dark");
-            localStorage.setItem("theme", "dark");
-            setIsDark(true);
-        }
+        const next = !isDark;
+        document.documentElement.classList.toggle("dark", next);
+        savePreference(PREF_KEYS.theme, next ? "dark" : "light");
     };
 
     return (

@@ -11,6 +11,8 @@ class OTPRequestIn(BaseModel):
 class OTPRequestOut(BaseModel):
     message: str = "OTP sent successfully"
     expires_in_seconds: int = 300
+    # Resend window (per phone and device) — drives the frontend's "Resend in Ns" countdown
+    resend_after_seconds: int = 60
     # Populated only when OTP_DEV_ECHO is enabled (dev/staging testing aid)
     dev_otp: str | None = None
 

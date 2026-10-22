@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, staticUrl } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
 export interface ProfilePublicOut {
@@ -23,6 +24,16 @@ export interface ProfilePublicOut {
     is_verified: boolean;
     completion_pct: number;
     photo_blur_until_mutual?: boolean;
+    /**
+     * Display photo, resolved for this viewer by /matches/recommendations and
+     * /search: set only when the viewer may see it (null when withheld or none).
+     */
+    profile_photo?: { url: string } | null;
+    /**
+     * True only while the member blurs photos until mutual interest and this
+     * viewer has not unlocked them. A missing photo alone does not mean locked.
+     */
+    photo_locked?: boolean;
 }
 
 export interface MatchRecommendation {
@@ -60,24 +71,41 @@ export function MatchCard({ match }: { match: MatchRecommendation }) {
     };
 
     const location = [profile.city_village, profile.state].filter(Boolean).join(", ");
+    const photoUrl = profile.profile_photo?.url;
+    // The server decides: a lock only when it says this viewer is locked out
+    const photoLocked = !photoUrl && !!profile.photo_locked;
 
     return (
         <Card className="group p-0 overflow-hidden hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
             {/* 1. Photo / privacy state */}
             <div className="h-24 bg-gradient-to-r from-gold-100 to-gold-50 dark:from-gray-800 dark:to-gray-700 relative">
-                {profile.photo_blur_until_mutual && (
+                {photoLocked && (
                     <span className="absolute top-2 left-2 text-[11px] bg-white/90 dark:bg-gray-900/90 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full border border-sand dark:border-gray-700">
-                        🔒 Photo private
+                        🔒 Photo after mutual interest
                     </span>
                 )}
             </div>
 
             <div className="p-4 relative">
-                {/* Avatar */}
+                {/* Avatar: photo when the server shares it, a lock while it is withheld */}
                 <div className="absolute -top-8 left-4 w-14 h-14 rounded-full border-[3px] border-white dark:border-gray-900 bg-gold-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
-                    <span className="text-xl" aria-hidden>
-                        {profile.gender === "female" ? "👩" : "👨"}
-                    </span>
+                    {photoUrl ? (
+                        <Image
+                            src={staticUrl(photoUrl)}
+                            alt={profile.display_name}
+                            fill
+                            sizes="56px"
+                            className="object-cover"
+                        />
+                    ) : photoLocked ? (
+                        <span className="text-xl" role="img" aria-label="Photo visible after mutual interest">
+                            🔒
+                        </span>
+                    ) : (
+                        <span className="text-xl" aria-hidden>
+                            {profile.gender === "female" ? "👩" : "👨"}
+                        </span>
+                    )}
                 </div>
 
                 {/* 2. Core details */}
