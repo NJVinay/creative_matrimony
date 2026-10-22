@@ -60,13 +60,9 @@
     @apply bg-white/80 backdrop-blur-lg border-b border-sand shadow-sm;
   }
 
-  .glass-dark {
-    @apply bg-gray-900/80 backdrop-blur-lg border-b border-white/10 shadow-sm;
-  }
-
   /*
-   * Most headers use .glass alone, and variants (dark:glass-dark) do not apply
-   * to plain classes in v4, so .glass switches its own surface under .dark.
+   * Headers use .glass alone, and dark: variants do not apply to plain
+   * classes in v4, so .glass switches its own surface under .dark.
    */
   .dark .glass {
     @apply bg-gray-900/80 border-white/10;

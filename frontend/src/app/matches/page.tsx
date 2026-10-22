@@ -108,7 +108,7 @@ export default function MatchesPage() {
                         {matches.map(({ profile, score, reasons }) => (
                             <Card key={profile.id} className="overflow-hidden hover:shadow-xl transition-shadow flex flex-col relative">
                                 {/* Match Score Badge */}
-                                <div className="absolute top-4 right-4 z-10 bg-white/90 dark:bg-black/80 backdrop-blur px-3 py-1 rounded-full shadow-sm border border-primary-100">
+                                <div className="absolute top-4 right-4 z-10 bg-white/90 dark:bg-black/80 backdrop-blur px-3 py-1 rounded-full shadow-sm border border-primary-100 dark:border-primary-800">
                                     <span className="text-sm font-bold text-primary-600">{score}% Match</span>
                                 </div>
 

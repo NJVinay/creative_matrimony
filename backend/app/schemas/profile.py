@@ -136,9 +136,16 @@ class ProfileOut(BaseModel):
     is_active: bool
     visibility: str
     photo_blur_until_mutual: bool
+    hide_from_search: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("hide_from_search", mode="before")
+    @classmethod
+    def legacy_null_is_false(cls, v):
+        """Rows from before the column had a default hold NULL: not hidden."""
+        return False if v is None else v
 
 
 class PhotoRefOut(BaseModel):

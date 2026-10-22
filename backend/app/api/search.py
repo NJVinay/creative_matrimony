@@ -30,8 +30,9 @@ async def search_matches(
     """
     Search profiles.
     Requires auth.
-    Privacy rules (hidden, verified-only, legal age, blocks) are applied in the
-    query itself, so `total` counts exactly the profiles the pages can show.
+    Privacy rules (hidden, verified-only, hide-from-search, legal age, blocks)
+    are applied in the query itself, so `total` counts exactly the profiles the
+    pages can show.
     Loads profiles + owners in a single batched query (no N+1).
     """
     filters = SearchFilters(

@@ -347,7 +347,7 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                                         <h3 className="font-medium text-sm text-gray-500 mb-2">Horoscope Chart</h3>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {horoscope.chart_images.map((img, idx) => (
-                                                <div key={idx} className="aspect-square relative rounded-lg overflow-hidden bg-gray-100 border">
+                                                <div key={idx} className="aspect-square relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200 dark:border-gray-700">
                                                     <Image
                                                         src={staticUrl(img)}
                                                         alt="Horoscope Chart"
@@ -388,7 +388,7 @@ function PublicProfileInner({ profileId }: { profileId: number }) {
                             </div>
                         )}
 
-                        <div className="text-xs text-gray-400 pt-4 border-t">
+                        <div className="text-xs text-gray-400 pt-4 border-t border-gray-100 dark:border-gray-800">
                             Profile completion: {Math.round(profile.completion_pct)}% · Contact details are private
                         </div>
                     </div>

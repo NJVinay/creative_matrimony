@@ -108,7 +108,7 @@ export default function OnboardingPage() {
                                             nextStep();
                                         }}
                                         className={`p-6 border-2 rounded-xl text-left transition-all ${formData.profile_mode === "self"
-                                                ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20"
+                                                ? "border-primary-600 dark:border-primary-400 bg-primary-50 dark:bg-primary-900/20"
                                                 : "border-gray-200 dark:border-gray-800 hover:border-primary-300"
                                             }`}
                                     >
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
                                             updateField("profile_mode", "parent");
                                         }}
                                         className={`p-6 border-2 rounded-xl text-left transition-all ${formData.profile_mode === "parent"
-                                                ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20"
+                                                ? "border-primary-600 dark:border-primary-400 bg-primary-50 dark:bg-primary-900/20"
                                                 : "border-gray-200 dark:border-gray-800 hover:border-primary-300"
                                             }`}
                                     >
@@ -188,7 +188,7 @@ export default function OnboardingPage() {
                                                     key={g}
                                                     onClick={() => updateField("gender", g)}
                                                     className={`flex-1 p-3 rounded-md border-2 transition-all ${formData.gender === g
-                                                            ? "border-primary-600 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300"
+                                                            ? "border-primary-600 dark:border-primary-400 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300"
                                                             : "border-gray-200 dark:border-gray-800"
                                                         }`}
                                                 >

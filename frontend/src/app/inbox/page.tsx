@@ -120,7 +120,7 @@ function InboxInner() {
                             key={t}
                             onClick={() => setTab(t)}
                             className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t
-                                ? "border-primary-600 text-primary-600"
+                                ? "border-primary-600 dark:border-primary-400 text-primary-600"
                                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                                 }`}
                         >

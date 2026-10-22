@@ -127,7 +127,7 @@ export default function HoroscopePage() {
                         <label htmlFor="rasi" className="text-sm font-medium">Rasi (Moon Sign)</label>
                         <select
                             id="rasi"
-                            className="w-full p-2 rounded-md border bg-background"
+                            className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-background"
                             value={data.rasi || ""}
                             onChange={(e) => setData({ ...data, rasi: e.target.value })}
                         >
@@ -142,7 +142,7 @@ export default function HoroscopePage() {
                         <label htmlFor="star" className="text-sm font-medium">Star (Nakshatra)</label>
                         <select
                             id="star"
-                            className="w-full p-2 rounded-md border bg-background"
+                            className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-background"
                             value={data.star || ""}
                             onChange={(e) => setData({ ...data, star: e.target.value })}
                         >
@@ -189,7 +189,7 @@ export default function HoroscopePage() {
                 </div>
 
                 {/* Chart Upload */}
-                <div className="space-y-2 pt-4 border-t">
+                <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-800">
                     <label htmlFor="chart-upload" className="text-sm font-medium block">Upload Horoscope Chart</label>
                     <div className="flex items-center gap-4">
                         <input
@@ -208,7 +208,7 @@ export default function HoroscopePage() {
                                 alt="Horoscope Chart"
                                 width={320}
                                 height={240}
-                                className="max-w-xs rounded-md border shadow-sm"
+                                className="max-w-xs rounded-md border border-gray-200 dark:border-gray-700 shadow-sm"
                             />
                         </div>
                     )}

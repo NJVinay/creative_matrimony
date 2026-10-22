@@ -70,7 +70,7 @@ function AdminServicesInner() {
                 <Card className="overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 dark:bg-gray-900 border-b">
+                            <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
                                 <tr>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">ID</th>
                                     <th className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">Member</th>
