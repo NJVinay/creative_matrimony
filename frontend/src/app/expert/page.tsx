@@ -165,7 +165,7 @@ export default function ExpertPage() {
                             <label htmlFor="category" className="text-sm font-medium">I need help with</label>
                             <select
                                 id="category"
-                                className="w-full p-2 rounded-md border bg-background"
+                                className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-background"
                                 value={category}
                                 onChange={(e) => setCategory(e.target.value)}
                             >
@@ -179,7 +179,7 @@ export default function ExpertPage() {
                             <label htmlFor="message" className="text-sm font-medium">Message / Details</label>
                             <textarea
                                 id="message"
-                                className="w-full p-2 rounded-md border bg-background min-h-[100px]"
+                                className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-background min-h-[100px]"
                                 placeholder="Describe what you are looking for..."
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
@@ -203,7 +203,7 @@ export default function ExpertPage() {
                     </form>
 
                     {/* Session booking (Epic I1) */}
-                    <div className="mt-8 pt-6 border-t">
+                    <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800">
                         <h2 className="text-xl font-bold mb-4">Book a Consultation Session</h2>
                         <p className="text-xs text-gray-500 mb-3">
                             Free members: 1 session/month (30 min). Subscribers: 4 sessions/month (up to 60 min).
@@ -213,7 +213,7 @@ export default function ExpertPage() {
                                 <label htmlFor="session-category" className="text-sm font-medium">Session type</label>
                                 <select
                                     id="session-category"
-                                    className="w-full p-2 rounded-md border bg-background"
+                                    className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-background"
                                     value={sessionCategory}
                                     onChange={(e) => setSessionCategory(e.target.value)}
                                 >
@@ -236,7 +236,7 @@ export default function ExpertPage() {
                                 <label htmlFor="session-duration" className="text-sm font-medium">Duration</label>
                                 <select
                                     id="session-duration"
-                                    className="w-full p-2 rounded-md border bg-background"
+                                    className="w-full p-2 rounded-md border border-gray-300 dark:border-gray-700 bg-background"
                                     value={sessionDuration}
                                     onChange={(e) => setSessionDuration(Number(e.target.value))}
                                 >

@@ -5,6 +5,7 @@ All external service configs are mock-ready for local development.
 
 import json
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -83,6 +84,12 @@ class Settings(BaseSettings):
     # built-in list in app/services/moderation.py. Whole-word matching;
     # a trailing "*" also matches longer forms (e.g. "idiot*").
     MODERATION_BLOCKED_TERMS: str = ""
+
+    # ── Matching ─────────────────────────────────────────
+    # Recommendations rank all eligible members by preference fit in the
+    # database, then fully score (horoscope included) at most this many of
+    # the best; it also caps how many one request can return.
+    MATCH_CANDIDATE_POOL: int = Field(300, ge=1)
 
     # ── File Storage (local for dev) ─────────────────────
     STORAGE_BACKEND: str = "local"  # "local" | "s3"

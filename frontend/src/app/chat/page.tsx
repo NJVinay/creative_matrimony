@@ -93,15 +93,15 @@ export default function ChatPage() {
                 <h1 className="text-3xl font-serif font-bold mb-6">Messages & Interests</h1>
 
                 {/* Tabs */}
-                <div className="flex border-b mb-6">
+                <div className="flex border-b border-gray-200 dark:border-gray-800 mb-6">
                     <button
-                        className={`px-6 py-3 font-medium text-sm transition-colors ${activeTab === "messages" ? "border-b-2 border-primary-600 text-primary-600" : "text-gray-500 hover:text-gray-700"}`}
+                        className={`px-6 py-3 font-medium text-sm transition-colors ${activeTab === "messages" ? "border-b-2 border-primary-600 dark:border-primary-400 text-primary-600" : "text-gray-500 hover:text-gray-700"}`}
                         onClick={() => setActiveTab("messages")}
                     >
                         Messages
                     </button>
                     <button
-                        className={`px-6 py-3 font-medium text-sm transition-colors ${activeTab === "interests" ? "border-b-2 border-primary-600 text-primary-600" : "text-gray-500 hover:text-gray-700"}`}
+                        className={`px-6 py-3 font-medium text-sm transition-colors ${activeTab === "interests" ? "border-b-2 border-primary-600 dark:border-primary-400 text-primary-600" : "text-gray-500 hover:text-gray-700"}`}
                         onClick={() => setActiveTab("interests")}
                     >
                         Interests

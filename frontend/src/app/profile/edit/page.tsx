@@ -260,13 +260,13 @@ function ProfileEditInner() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1">
+                <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-800 overflow-x-auto pb-1">
                     {(["basic", "location", "details", "horoscope", "photos"] as Tab[]).map(t => (
                         <button
                             key={t}
                             onClick={() => setTab(t)}
                             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t
-                                ? "border-primary-600 text-primary-600"
+                                ? "border-primary-600 dark:border-primary-400 text-primary-600"
                                 : "border-transparent text-gray-500 hover:text-gray-700"
                                 }`}
                         >
@@ -473,7 +473,7 @@ function ProfileEditInner() {
                                 </div>
                             )}
 
-                            <div className="pt-4 border-t mt-4">
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-800 mt-4">
                                 <h3 className="font-bold mb-2">Horoscope Chart Upload</h3>
                                 <p className="text-xs text-gray-500 mb-2">Upload an image of your physical horoscope chart. This will only be visible to mutual matches.</p>
                                 <input
@@ -515,7 +515,7 @@ function ProfileEditInner() {
                                 </label>
                                 {uploading && <p className="text-sm text-gray-500 mt-2">Uploading...</p>}
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
                                 {photos.length === 0 ? (
                                     <div className="col-span-full text-center text-gray-500 py-8">
                                         No photos yet. Upload your first photo above.
@@ -558,7 +558,7 @@ function ProfileEditInner() {
                         </>
                     )}
 
-                    <div className="flex justify-end pt-4 border-t">
+                    <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-800">
                         <Button
                             onClick={tab === "horoscope" ? handleSaveHoroscope : handleSave}
                             isLoading={tab === "horoscope" ? savingHoroscope : saving}

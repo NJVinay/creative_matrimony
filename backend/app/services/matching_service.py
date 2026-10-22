@@ -3,18 +3,20 @@ Matching Service.
 Trace: @context_documents/MVP_BACKLOG.md Epic F, G
 """
 
+from datetime import date
 from typing import List, Optional, Tuple
-from sqlalchemy import select, and_, or_, not_
+from sqlalchemy import select, and_, or_, not_, case
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.profile import Profile, Gender
+from app.config import settings
+from app.models.profile import Profile, Gender, MaritalStatus
 from app.models.match import Preference
 from app.models.communication import Interest
 from app.models.horoscope import Horoscope, Rasi, Star
 from app.models.safety import UserBlock
 from app.services.profile_service import (
-    legal_age_condition, meets_minimum_age, visibility_condition,
+    legal_age_condition, meets_minimum_age, visibility_condition, years_ago,
 )
 
 # Classical ordering used for porutham-style counting
@@ -23,6 +25,15 @@ RASI_ORDER = list(Rasi)   # 12 rasis, Mesha → Meena
 
 # Weight of the horoscope component in the blended score (Epic F2)
 HOROSCOPE_WEIGHT = 0.2
+
+# Preference ages are clamped to this when turned into date-of-birth bounds,
+# so an absurd stored value (e.g. max_age 5000) cannot leave the calendar
+MAX_AGE_BOUND = 150
+
+
+def _born_by(age: int, today: date) -> date:
+    """Latest date of birth of someone `age` or older (age clamped to 0..MAX_AGE_BOUND)."""
+    return years_ago(min(max(age, 0), MAX_AGE_BOUND), today)
 
 
 class MatchingService:
@@ -157,6 +168,56 @@ class MatchingService:
         return score, reasons, confidence
 
     @staticmethod
+    def preference_prescore(pref: Preference, today: Optional[date] = None):
+        """
+        SQL form of calculate_score's preference points (age, height, marital
+        status, community, state; not the horoscope), so the database can rank
+        candidates before the pool is cut. Points every candidate gets alike
+        (an unset preference) are left out: they do not change the order.
+        Candidates with a NULL field get no points for it, as in Python.
+        Returns None when no component tells candidates apart.
+        """
+        today = today or date.today()
+        terms = []
+
+        # Age (25): age >= min_age <=> born on or before years_ago(min_age), and
+        # age <= max_age <=> born after years_ago(max_age + 1). Profile.age is
+        # computed from date_of_birth the same way, so the two always agree.
+        if pref.min_age is not None and pref.max_age is not None:
+            in_age_range = and_(
+                Profile.date_of_birth <= _born_by(pref.min_age, today),
+                Profile.date_of_birth > _born_by(pref.max_age + 1, today),
+            )
+            terms.append(case((in_age_range, 25), else_=0))
+
+        # Height (15): only when both bounds are set; a candidate without a
+        # height then gets nothing, while with no bounds everyone gets 10
+        if pref.min_height and pref.max_height:
+            in_height_range = Profile.height_cm.between(pref.min_height, pref.max_height)
+            terms.append(case((in_height_range, 15), else_=0))
+
+        # Marital status (20): the statuses Python's `in` accepts (str enum
+        # members equal their stored string values)
+        if pref.marital_status:
+            statuses = [m for m in MaritalStatus if m in pref.marital_status]
+            if statuses:
+                terms.append(case((Profile.marital_status.in_(statuses), 20), else_=0))
+
+        # Community (20): JSON list of community ids (the schema stores ints)
+        if pref.community_id:
+            ids = sorted({int(v) for v in pref.community_id if isinstance(v, int)})
+            if ids:
+                terms.append(case((Profile.community_id.in_(ids), 20), else_=0))
+
+        # Location (20): exact state, case-sensitive like Python's ==
+        if pref.state:
+            terms.append(case((Profile.state == pref.state, 20), else_=0))
+
+        if not terms:
+            return None
+        return sum(terms[1:], terms[0])
+
+    @staticmethod
     async def get_recommendations(
         db: AsyncSession,
         user_profile_id: int,
@@ -214,6 +275,9 @@ class MatchingService:
             # verified-only ones only for verified seekers
             visibility_condition(profile.user),
             Profile.is_active == True,
+            # "Hide completely from Search" also keeps a member out of the
+            # daily matches, as the settings page promises; NULL is not hidden
+            Profile.hide_from_search.is_not(True),
             # Hard filter, independent of preferences: age preferences only
             # add score points, so they can never be what keeps minors out.
             legal_age_condition(),
@@ -224,20 +288,28 @@ class MatchingService:
         if target_gender:
             query = query.where(Profile.gender == target_gender)
 
-        # 4. Fetch Batch (Optimize: Filter roughly by DB first? For now fetch all valid and score in python for "best" accuracy on small dataset)
-        # Limit DB fetch to e.g. 100 recent active profiles to score
-        query = query.limit(100)
+        # 4. Candidate pool: the database ranks every eligible member by the
+        # same preference points calculate_score gives, so the best matches are
+        # the ones scored, not whichever rows it happens to return first. Ties
+        # go to the most recently updated, then the newest profile: a total
+        # order, so the same data always gives the same recommendations.
+        prescore = MatchingService.preference_prescore(pref)
+        query = query.order_by(
+            *([prescore.desc()] if prescore is not None else []),
+            Profile.updated_at.desc(),
+            Profile.id.desc(),
+        ).limit(settings.MATCH_CANDIDATE_POOL)
 
         candidates = (await db.execute(query)).scalars().all()
 
-        # 5. Score & Sort
+        # 5. Full score (horoscope included) & Sort
         scored_candidates = []
         for cand in candidates:
             score, reasons, confidence = MatchingService.calculate_score(cand, pref, profile.horoscope)
             if score > 0: # Only return if some match
                 scored_candidates.append((cand, score, reasons, confidence))
 
-        # Sort desc by score
+        # Sort desc by score; the sort is stable, so ties keep the pool order
         scored_candidates.sort(key=lambda x: x[1], reverse=True)
 
         return scored_candidates[:limit]

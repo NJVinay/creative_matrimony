@@ -65,6 +65,9 @@ async def _build_filter_conditions(
         Profile.is_active.is_(True),
         # Same rule as the profile page: never hidden, verified-only for verified viewers
         visibility_condition(viewer),
+        # "Hide completely from Search" opt-out, for every viewer like visibility
+        # (staff review via the profile page); NULL on legacy rows means not hidden
+        Profile.hide_from_search.is_not(True),
         Profile.date_of_birth <= max_dob,
         Profile.date_of_birth > min_dob,
         legal_age_condition(today),  # never list anyone under the legal marriage age
@@ -115,8 +118,8 @@ async def search_profiles(
 ) -> List[Profile]:
     """
     Execute search with dynamic filters, as seen by `viewer`: visibility
-    (hidden, verified-only), legal age, blocks and the viewer's own profile
-    are all applied in SQL.
+    (hidden, verified-only), hide-from-search, legal age, blocks and the
+    viewer's own profile are all applied in SQL.
     """
     conditions = await _build_filter_conditions(db, filters, viewer)
 

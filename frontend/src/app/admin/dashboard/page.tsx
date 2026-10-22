@@ -152,11 +152,11 @@ function AdminInner() {
                 )}
 
                 {/* Tabs */}
-                <div className="flex gap-2 border-b">
+                <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800">
                     <button
                         onClick={() => setTab("users")}
                         className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "users"
-                                ? "border-primary-600 text-primary-600"
+                                ? "border-primary-600 dark:border-primary-400 text-primary-600"
                                 : "border-transparent text-gray-500"
                             }`}
                     >
@@ -165,7 +165,7 @@ function AdminInner() {
                     <button
                         onClick={() => setTab("photos")}
                         className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "photos"
-                                ? "border-primary-600 text-primary-600"
+                                ? "border-primary-600 dark:border-primary-400 text-primary-600"
                                 : "border-transparent text-gray-500"
                             }`}
                     >
@@ -236,7 +236,7 @@ function AdminInner() {
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {pendingPhotos.map(photo => (
-                                    <div key={photo.id} className="border rounded-lg overflow-hidden">
+                                    <div key={photo.id} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                                         <div className="aspect-square relative bg-gray-100">
                                             <Image
                                                 src={staticUrl(photo.storage_key)}

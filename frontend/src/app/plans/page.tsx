@@ -163,7 +163,7 @@ function PlansInner() {
 
                         {/* Premium Plans */}
                         {plans.map(plan => (
-                            <Card key={plan.id} className="p-8 border-primary-500 shadow-xl relative scale-105">
+                            <Card key={plan.id} className="p-8 border-primary-500 dark:border-primary-500 shadow-xl relative scale-105">
                                 <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
                                     RECOMMENDED
                                 </div>
@@ -240,7 +240,7 @@ function PlansInner() {
                                 <span>Order ID</span>
                                 <span className="font-mono text-xs">{(checkoutPlan as Plan & Partial<OrderResponse>).order_id}</span>
                             </div>
-                            <div className="flex justify-between pt-2 border-t font-bold text-lg">
+                            <div className="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700 font-bold text-lg">
                                 <span>Total Payable</span>
                                 <span>{checkoutPlan.currency === 'INR' ? '₹' : ''}{checkoutPlan.price}</span>
                             </div>
